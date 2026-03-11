@@ -87,6 +87,12 @@ def build_champion_id_map(champion_data):
     return {name: i + 1 for i, name in enumerate(names)}
 
 
+def get_cost(champion_data, name, default=1):
+    """Helper: lấy cost từ champion_data dù là dict đầy đủ hay {name: cost}"""
+    val = champion_data.get(name, default)
+    return val['cost'] if isinstance(val, dict) else val
+
+
 # ==================
 # TFT ENVIRONMENT
 # ==================
@@ -228,7 +234,7 @@ class TFTEnv(gym.Env):
             name = econ.shop.slots[slot]
             if name is None:
                 return False
-            cost = self.champion_data.get(name, 1)
+            cost = get_cost(self.champion_data, name)
             return econ.gold >= cost
 
         # Reroll
@@ -273,7 +279,7 @@ class TFTEnv(gym.Env):
         if action in ACTION_BUY_SHOP:
             slot = action
             name = econ.shop.slots[slot]
-            cost = self.champion_data.get(name, 1)
+            cost = get_cost(self.champion_data, name)
             champ = self.game.make_champion(name)
             bought = econ.buy_champion(slot, cost)
             if bought:
@@ -392,8 +398,7 @@ class TFTEnv(gym.Env):
         for slot in econ.shop.slots:
             if slot is not None:
                 obs[idx]     = self.champ_id_map.get(slot, 0) / self.n_champions
-                cost = self.champion_data[slot]['cost'] if isinstance(self.champion_data.get(slot), dict) else self.champion_data.get(slot, 1)
-                obs[idx + 1] = cost / 5.0
+                obs[idx + 1] = get_cost(self.champion_data, slot) / 5.0
             idx += 2
 
         # Bench (18)
@@ -453,7 +458,7 @@ class TFTEnv(gym.Env):
             for i, slot in enumerate(econ.shop.slots):
                 if slot is None:
                     continue
-                cost = self.champion_data.get(slot, 1)
+                cost = get_cost(self.champion_data, slot)
                 if econ.gold >= cost:
                     name = econ.buy_champion(i, cost)
                     if name:
