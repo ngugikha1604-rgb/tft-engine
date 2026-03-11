@@ -32,8 +32,11 @@ from gymnasium import spaces
 import sys
 import os
 
-# Thêm path để import engine
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Thêm path để import engine — tìm cả thư mục hiện tại lẫn thư mục cha
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+for _p in [_THIS_DIR, os.path.join(_THIS_DIR, "engine")]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from game import Game
 from econ import ChampionPool
@@ -389,7 +392,8 @@ class TFTEnv(gym.Env):
         for slot in econ.shop.slots:
             if slot is not None:
                 obs[idx]     = self.champ_id_map.get(slot, 0) / self.n_champions
-                obs[idx + 1] = self.champion_data.get(slot, 1) / 5.0
+                cost = self.champion_data[slot]['cost'] if isinstance(self.champion_data.get(slot), dict) else self.champion_data.get(slot, 1)
+                obs[idx + 1] = cost / 5.0
             idx += 2
 
         # Bench (18)
