@@ -1,0 +1,427 @@
+{
+  "_meta": {
+    "set": 16,
+    "patch": "16.6",
+    "note": "Stats lấy từ mobalytics.gg patch 16.6. HP là base 1-star. Traits theo thứ tự [region, class...]."
+  },
+
+  "Shen": {
+    "cost": 1,
+    "hp": 700,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 65,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 30,
+    "mana_max": 90,
+    "traits": ["Ionia", "Bruiser"],
+    "role": "tank"
+  },
+
+  "Illaoi": {
+    "cost": 1,
+    "hp": 750,
+    "armor": 40,
+    "mr": 30,
+    "attack_damage": 60,
+    "attack_speed": 0.7,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Bilgewater", "Bruiser"],
+    "role": "tank"
+  },
+
+  "Sona": {
+    "cost": 1,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 40,
+    "attack_speed": 0.7,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Demacia", "Invoker"],
+    "role": "caster"
+  },
+
+  "Anivia": {
+    "cost": 1,
+    "hp": 500,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 40,
+    "attack_speed": 0.65,
+    "range": 4,
+    "mana_start": 30,
+    "mana_max": 80,
+    "traits": ["Freljord", "Invoker"],
+    "role": "caster"
+  },
+
+  "Jarvan IV": {
+    "cost": 1,
+    "hp": 650,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 55,
+    "attack_speed": 0.7,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 70,
+    "traits": ["Demacia", "Defender"],
+    "role": "tank"
+  },
+
+  "Jhin": {
+    "cost": 1,
+    "hp": 500,
+    "armor": 15,
+    "mr": 15,
+    "attack_damage": 60,
+    "attack_speed": 0.55,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Ionia", "Gunslinger"],
+    "role": "marksman"
+  },
+
+  "Viego": {
+    "cost": 1,
+    "hp": 550,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 55,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Shadow Isles", "Quickstriker"],
+    "role": "fighter"
+  },
+
+  "Yasuo": {
+    "cost": 2,
+    "hp": 650,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 65,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Ionia", "Slayer"],
+    "role": "fighter"
+  },
+
+  "Sion": {
+    "cost": 2,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 60,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Noxus", "Bruiser"],
+    "role": "tank"
+  },
+
+  "Cho'Gath": {
+    "cost": 2,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 60,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Void", "Juggernaut"],
+    "role": "tank"
+  },
+
+  "Rek'Sai": {
+    "cost": 2,
+    "hp": 700,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 60,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Void", "Slayer"],
+    "role": "fighter"
+  },
+
+  "Xin Zhao": {
+    "cost": 2,
+    "hp": 650,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 60,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Demacia", "Slayer"],
+    "role": "fighter"
+  },
+
+  "Aphelios": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 60,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 30,
+    "mana_max": 100,
+    "traits": ["Targon", "Longshot"],
+    "role": "marksman"
+  },
+
+  "Sejuani": {
+    "cost": 3,
+    "hp": 900,
+    "armor": 60,
+    "mr": 60,
+    "attack_damage": 65,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Freljord", "Defender"],
+    "role": "tank"
+  },
+
+  "Gwen": {
+    "cost": 3,
+    "hp": 750,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 70,
+    "attack_speed": 0.8,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 70,
+    "traits": ["Shadow Isles", "Disruptor"],
+    "role": "fighter"
+  },
+
+  "Draven": {
+    "cost": 3,
+    "hp": 700,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 80,
+    "attack_speed": 0.85,
+    "range": 3,
+    "mana_start": 30,
+    "mana_max": 100,
+    "traits": ["Noxus", "Quickstriker"],
+    "role": "marksman"
+  },
+
+  "Dr. Mundo": {
+    "cost": 3,
+    "hp": 1000,
+    "armor": 60,
+    "mr": 60,
+    "attack_damage": 65,
+    "attack_speed": 0.7,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Zaun", "Bruiser"],
+    "role": "tank"
+  },
+
+  "Braum": {
+    "cost": 4,
+    "hp": 1050,
+    "armor": 70,
+    "mr": 70,
+    "attack_damage": 70,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Freljord", "Juggernaut"],
+    "role": "tank"
+  },
+
+  "Bel'Veth": {
+    "cost": 4,
+    "hp": 800,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 75,
+    "attack_speed": 0.9,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Void", "Slayer"],
+    "role": "fighter"
+  },
+
+  "Nasus": {
+    "cost": 4,
+    "hp": 1000,
+    "armor": 60,
+    "mr": 60,
+    "attack_damage": 80,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 70,
+    "traits": ["Shurima", "Juggernaut"],
+    "role": "tank"
+  },
+
+  "Taric": {
+    "cost": 4,
+    "hp": 900,
+    "armor": 55,
+    "mr": 80,
+    "attack_damage": 60,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 40,
+    "mana_max": 100,
+    "traits": ["Targon", "Bastion"],
+    "role": "tank"
+  },
+
+  "Lissandra": {
+    "cost": 4,
+    "hp": 750,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 55,
+    "attack_speed": 0.7,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Freljord", "Invoker"],
+    "role": "caster"
+  },
+
+  "Warwick": {
+    "cost": 4,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 80,
+    "attack_speed": 0.9,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Zaun", "Slayer"],
+    "role": "fighter"
+  },
+
+  "Ziggs": {
+    "cost": 5,
+    "hp": 800,
+    "armor": 30,
+    "mr": 30,
+    "attack_damage": 65,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 30,
+    "mana_max": 90,
+    "traits": ["Zaun", "Yordle"],
+    "role": "caster"
+  },
+
+  "Volibear": {
+    "cost": 5,
+    "hp": 1200,
+    "armor": 70,
+    "mr": 70,
+    "attack_damage": 90,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Freljord", "Bruiser"],
+    "role": "tank"
+  },
+
+  "Xerath": {
+    "cost": 5,
+    "hp": 750,
+    "armor": 30,
+    "mr": 30,
+    "attack_damage": 55,
+    "attack_speed": 0.65,
+    "range": 5,
+    "mana_start": 20,
+    "mana_max": 60,
+    "traits": ["Shurima", "Longshot"],
+    "role": "caster"
+  },
+
+  "Kindred": {
+    "cost": 5,
+    "hp": 850,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 75,
+    "attack_speed": 0.8,
+    "range": 3,
+    "mana_start": 0,
+    "mana_max": 70,
+    "traits": ["Shadow Isles", "Quickstriker"],
+    "role": "marksman"
+  },
+
+  "Ornn": {
+    "cost": 5,
+    "hp": 1100,
+    "armor": 80,
+    "mr": 80,
+    "attack_damage": 75,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 90,
+    "traits": ["Freljord", "Juggernaut"],
+    "role": "tank"
+  },
+
+  "Thresh": {
+    "cost": 5,
+    "hp": 1000,
+    "armor": 70,
+    "mr": 70,
+    "attack_damage": 70,
+    "attack_speed": 0.65,
+    "range": 2,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Shadow Isles", "Bastion"],
+    "role": "tank"
+  },
+
+  "Annie": {
+    "cost": 5,
+    "hp": 800,
+    "armor": 30,
+    "mr": 30,
+    "attack_damage": 60,
+    "attack_speed": 0.7,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 100,
+    "traits": ["Noxus", "Arcanist"],
+    "role": "caster"
+  }
+}
