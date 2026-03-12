@@ -219,8 +219,8 @@ class TraitManager:
             return value
 
         elif stat == "ad_pct":
-            delta = champ.attack_damage * value
-            champ.attack_damage += delta
+            delta = champ.ad * value
+            champ.ad += delta
             return delta
 
         elif stat == "as_pct":
@@ -264,7 +264,7 @@ class TraitManager:
             champ.mr -= delta
 
         elif stat == "ad_pct":
-            champ.attack_damage -= delta
+            champ.ad -= delta
 
         elif stat == "as_pct":
             champ.attack_speed -= delta
