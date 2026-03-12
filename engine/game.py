@@ -430,10 +430,7 @@ class Game:
         if team_b:
             trait_mgr_b.apply(team_b)
 
-        if team_a:
-            print(f"[Traits A] {trait_mgr_a.get_active_summary(team_a)}")
-        if team_b:
-            print(f"[Traits B] {trait_mgr_b.get_active_summary(team_b)}")
+
 
         # Dùng board tạm thời để chạy combat
         from board import HexBoard

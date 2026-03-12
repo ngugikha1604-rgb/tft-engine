@@ -181,9 +181,7 @@ class TraitManager:
                 delta = self._apply_stat(champ, stat, value)
                 self._applied[id(champ)].append((stat, delta))
 
-        active = [b["trait"] for b in bonuses]
-        if active:
-            print(f"[Traits] Active: {', '.join(active)}")
+
 
     def remove(self, champions):
         """
