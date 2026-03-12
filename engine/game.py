@@ -39,6 +39,7 @@ from combat import CombatSimulator
 from econ import PlayerEconomy, ChampionPool
 from items import ItemRegistry, ABILITY_HANDLERS
 from augments import AugmentRegistry, AugmentManager, AUGMENT_ROUNDS
+from traits import TraitManager, DEFAULT_TRAITS
 
 
 # ==================
@@ -315,16 +316,18 @@ class Game:
     """
 
     def __init__(self, player_names, champion_data,
-                 item_data=None, augment_data=None,
+                 item_data=None, augment_data=None, trait_data=None,
                  item_handlers=None, augment_handlers=None):
         """
         player_names   : list[str] tên 8 players
         champion_data  : dict {name: cost} cho ChampionPool
         item_data      : dict load từ items.json
         augment_data   : dict load từ augments.json
+        trait_data     : dict load từ traits.json (None = dùng DEFAULT_TRAITS)
         """
         # Shared champion pool
         self.pool = ChampionPool(champion_data)
+        self._trait_data = trait_data or DEFAULT_TRAITS
         self._champion_data = champion_data     # Dùng để tạo Champion instance
 
         # Item registry
@@ -420,6 +423,18 @@ class Game:
         if player_b:
             player_b.augment_manager.apply_team_stats(team_b)
 
+        # Apply trait bonuses
+        trait_mgr_a = TraitManager(self._trait_data)
+        trait_mgr_b = TraitManager(self._trait_data)
+        trait_mgr_a.apply(team_a)
+        if team_b:
+            trait_mgr_b.apply(team_b)
+
+        if team_a:
+            print(f"[Traits A] {trait_mgr_a.get_active_summary(team_a)}")
+        if team_b:
+            print(f"[Traits B] {trait_mgr_b.get_active_summary(team_b)}")
+
         # Dùng board tạm thời để chạy combat
         from board import HexBoard
         combat_board = HexBoard()
@@ -455,6 +470,11 @@ class Game:
 
         sim = CombatSimulator(combat_board, team_a, team_b)
         result = sim.run(max_seconds=30)
+
+        # Remove trait bonuses sau combat
+        trait_mgr_a.remove(team_a)
+        if team_b:
+            trait_mgr_b.remove(team_b)
 
         # Restore position của champions về board gốc của mỗi player
         # (combat_board là board tạm, sau combat xóa đi)

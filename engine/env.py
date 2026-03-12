@@ -40,6 +40,7 @@ for _p in [_THIS_DIR, os.path.join(_THIS_DIR, "engine")]:
 
 from game import Game
 from econ import ChampionPool
+from traits import TraitManager, DEFAULT_TRAITS
 
 
 # ==================
@@ -54,6 +55,7 @@ N_SHOP_SLOTS  = 5
 N_BENCH_SLOTS = 9
 N_BOARD_SLOTS = 28      # 4×7
 N_OPPONENTS   = 7       # 8 players - 1
+N_TRAITS      = 21      # số traits trong DEFAULT_TRAITS (không tính _meta)
 
 # Action indices
 ACTION_BUY_SHOP   = list(range(0, 5))          # 0-4
@@ -71,8 +73,9 @@ OBS_SIZE = (
     N_SHOP_SLOTS  * 2 +         # shop (id + cost)
     N_BENCH_SLOTS * 2 +         # bench (id + star)
     N_BOARD_SLOTS * 2 +         # board (id + star)
-    N_OPPONENTS                 # opponents hp
-)   # = 6 + 10 + 18 + 56 + 7 = 97
+    N_OPPONENTS   +             # opponents hp
+    N_TRAITS                    # active trait levels (0=inactive, 1/2/3=level)
+)   # = 6 + 10 + 18 + 56 + 7 + 21 = 118
 
 
 # ==================
@@ -124,6 +127,11 @@ class TFTEnv(gym.Env):
         self.champ_id_map   = build_champion_id_map(champion_data)
         self.n_champions    = len(champion_data)
 
+        # Trait ID map để encode observation
+        trait_names = [k for k in DEFAULT_TRAITS.keys() if not k.startswith("_")]
+        self.trait_id_list  = sorted(trait_names)   # thứ tự cố định
+        self.n_trait_levels = 3                      # max level
+
         # ==================
         # Spaces
         # ==================
@@ -174,6 +182,12 @@ class TFTEnv(gym.Env):
 
         # Roll shop đầu tiên cho agent
         self.agent.econ.shop.roll(self.agent.level)
+
+        # Reward shaping trackers
+        self._prev_board_size  = 0      # số tướng trên board round trước
+        self._prev_level       = 1      # level round trước
+        self._prev_trait_count = 0      # số traits active round trước
+        self._prev_gold        = 4      # gold round trước
 
         # Bot đặt champions ngẫu nhiên lên board
         self._setup_bots()
@@ -277,9 +291,9 @@ class TFTEnv(gym.Env):
 
         # Mua shop
         if action in ACTION_BUY_SHOP:
-            slot = action
-            name = econ.shop.slots[slot]
-            cost = get_cost(self.champion_data, name)
+            slot  = action
+            name  = econ.shop.slots[slot]
+            cost  = get_cost(self.champion_data, name)
             champ = self.game.make_champion(name)
             bought = econ.buy_champion(slot, cost)
             if bought:
@@ -288,6 +302,9 @@ class TFTEnv(gym.Env):
                     # Bench đầy → trả lại
                     econ.gold += cost
                     self.game.pool.return_champ(name)
+                else:
+                    # Thưởng nhỏ khi mua tướng cost cao hơn
+                    reward += cost * 0.05
 
         # Reroll
         elif action == ACTION_REROLL:
@@ -298,7 +315,7 @@ class TFTEnv(gym.Env):
             before = econ.level
             econ.buy_xp()
             if econ.level > before:
-                reward += 0.5   # Thưởng nhỏ khi level up
+                reward += 1.0   # Thưởng khi level up
 
         # Bán bench
         elif action in ACTION_SELL_BENCH:
@@ -306,7 +323,6 @@ class TFTEnv(gym.Env):
             champ = self.agent.bench[idx]
             if champ:
                 self.agent.sell(champ)
-                reward += 0.1   # Thưởng nhỏ khi có gold
 
         # Đặt bench lên board
         elif ACTION_PLACE_BASE <= action < ACTION_PASS:
@@ -314,7 +330,23 @@ class TFTEnv(gym.Env):
             bench_idx = relative // N_BOARD_SLOTS
             board_idx = relative % N_BOARD_SLOTS
             row, col  = BOARD_POSITIONS[board_idx]
+            before_board = len(self.agent.get_board_champions())
             self.agent.place_on_board(bench_idx, row, col)
+            after_board = len(self.agent.get_board_champions())
+
+            if after_board > before_board:
+                # Thưởng khi đặt được tướng lên board
+                reward += 0.3
+
+                # Thưởng thêm nếu tạo ra trait mới
+                board_champs = self.agent.get_board_champions()
+                from traits import TraitManager
+                trait_mgr   = TraitManager(self.game._trait_data)
+                bonuses     = trait_mgr.calc_bonuses(board_champs)
+                active_now  = len(bonuses)
+                if active_now > self._prev_trait_count:
+                    reward += 0.5 * (active_now - self._prev_trait_count)
+                    self._prev_trait_count = active_now
 
         return reward
 
@@ -328,28 +360,61 @@ class TFTEnv(gym.Env):
         Bots thực hiện actions đơn giản trước khi combat.
         Trả về reward từ kết quả round.
         """
+        # Snapshot trước combat
+        board_champs  = self.agent.get_board_champions()
+        board_size    = len(board_champs)
+        level_before  = self.agent.econ.level
+
         # Bots reroll và mua tướng đơn giản
         self._run_bots()
 
         # Chạy 1 round
         results = self.game.simulate_round(verbose=False)
 
-        # Tính reward dựa trên HP thay đổi
-        hp_now    = self.agent.hp
-        hp_delta  = hp_now - self._prev_hp      # Âm nếu thua, 0 nếu thắng
+        reward = 0.0
+
+        # ── 1. HP delta ──────────────────────────────
+        hp_now   = self.agent.hp
+        hp_delta = hp_now - self._prev_hp
         self._prev_hp = hp_now
+        reward += hp_delta * 0.15   # mỗi HP mất = -0.15
 
-        # Reward: mỗi HP mất = -0.1, thắng không mất HP = +1
-        reward = hp_delta * 0.1     # hp_delta âm → reward âm
+        # ── 2. Thắng/thua round ──────────────────────
         if hp_delta == 0 and self.game.is_pvp():
-            reward += 1.0           # Thắng không mất máu
+            reward += 2.0           # Thắng không mất máu
+        elif hp_delta < 0:
+            reward -= 0.5           # Phạt thêm khi thua
 
-        # Thưởng cho vị trí cuối round
+        # ── 3. Board size — khuyến khích đặt đủ tướng ─
+        if board_size > self._prev_board_size:
+            reward += 0.3 * (board_size - self._prev_board_size)
+        elif board_size == 0:
+            reward -= 1.0           # Phạt nặng nếu board trống
+        self._prev_board_size = board_size
+
+        # ── 4. Trait bonus ───────────────────────────
+        from traits import TraitManager
+        trait_mgr    = TraitManager(self.game._trait_data)
+        bonuses      = trait_mgr.calc_bonuses(board_champs)
+        trait_count  = len(bonuses)
+        if trait_count > 0:
+            reward += 0.2 * trait_count   # +0.2 mỗi trait active
+        self._prev_trait_count = trait_count
+
+        # ── 5. Interest / economy ────────────────────
+        gold_now = self.agent.econ.gold
+        interest = min(gold_now // 10, 5)
+        if interest >= 3:
+            reward += 0.1 * interest    # Thưởng nhỏ khi giữ gold tốt
+
+        # ── 6. Vị trí trong game ─────────────────────
         standings = self.game.get_standings()
         rank = next((i for i, p in enumerate(standings)
                      if p is self.agent), 7)
-        if rank <= 3:
-            reward += 0.5           # Top 4 mỗi round
+        if rank == 0:
+            reward += 1.5
+        elif rank <= 3:
+            reward += 0.5
 
         return reward
 
@@ -420,6 +485,17 @@ class TFTEnv(gym.Env):
         opponents = [p for p in self.game.players if p is not self.agent]
         for i, opp in enumerate(opponents[:N_OPPONENTS]):
             obs[idx] = opp.hp / 100.0
+            idx += 1
+
+        # Active traits (21) — level của từng trait / max_level
+        board_champs = self.agent.get_board_champions()
+        trait_mgr    = TraitManager(self.game._trait_data)
+        trait_counts = trait_mgr.count_traits(board_champs)
+        for trait_name in self.trait_id_list:
+            trait    = trait_mgr.traits.get(trait_name)
+            if trait:
+                level, _ = trait.get_active_level(trait_counts.get(trait_name, 0))
+                obs[idx] = level / self.n_trait_levels
             idx += 1
 
         return obs
