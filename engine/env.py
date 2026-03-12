@@ -55,7 +55,7 @@ N_SHOP_SLOTS  = 5
 N_BENCH_SLOTS = 9
 N_BOARD_SLOTS = 28      # 4×7
 N_OPPONENTS   = 7       # 8 players - 1
-N_TRAITS      = 21      # số traits trong DEFAULT_TRAITS (không tính _meta)
+N_TRAITS      = 22      # số traits trong DEFAULT_TRAITS (không tính _meta)
 
 # Action indices
 ACTION_BUY_SHOP   = list(range(0, 5))          # 0-4
@@ -75,7 +75,7 @@ OBS_SIZE = (
     N_BOARD_SLOTS * 2 +         # board (id + star)
     N_OPPONENTS   +             # opponents hp
     N_TRAITS                    # active trait levels (0=inactive, 1/2/3=level)
-)   # = 6 + 10 + 18 + 56 + 7 + 21 = 118
+)   # = 6 + 10 + 18 + 56 + 7 + 22 = 119
 
 
 # ==================
