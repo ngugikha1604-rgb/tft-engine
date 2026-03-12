@@ -246,7 +246,7 @@ class TraitManager:
 
         elif stat == "mana_flat":
             # Giảm mana cần cast (mana_start tăng = cast nhanh hơn)
-            champ.mana_start = min(champ.mana_start + value, champ.mana_max - 10)
+            champ.mana_start = min(champ.mana_start + value, champ.max_mana - 10)
             return value
 
         return 0
