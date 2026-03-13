@@ -327,6 +327,8 @@ class TFTEnv(gym.Env):
             bench_idx = relative // N_BOARD_SLOTS
             board_idx = relative % N_BOARD_SLOTS
             row, col  = BOARD_POSITIONS[board_idx]
+            # Lấy champ từ bench trước khi đặt
+            placed_champ = self.agent.bench[bench_idx]
             before_board = len(self.agent.get_board_champions())
             self.agent.place_on_board(bench_idx, row, col)
             after_board = len(self.agent.get_board_champions())
@@ -344,7 +346,7 @@ class TFTEnv(gym.Env):
                     self._prev_trait_count = active_now
 
                 # Thưởng positioning: tank hàng đầu, carry hàng sau
-                reward += self._positioning_reward(champ, row)
+                reward += self._positioning_reward(placed_champ, row)
 
         return reward
 
