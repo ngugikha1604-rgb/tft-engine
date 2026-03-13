@@ -168,17 +168,37 @@ class Player:
                     result.append(champ)
         return result
     def get_all_champions(self):
-            """
-            Trả về danh sách tất cả Champion instance mà người chơi đang sở hữu
-            bao gồm cả trên bàn cờ (board) và hàng chờ (bench). 🏆
-            """
-            # Lấy tướng từ hàng chờ (loại bỏ các vị trí None)
-            bench_champs = [c for c in self.bench if c is not None]
+        """
+        Trả về danh sách tất cả Champion instance mà người chơi đang sở hữu
+        bao gồm cả trên bàn cờ (board) và hàng chờ (bench). 🏆
+        """
+        # Lấy tướng từ hàng chờ (loại bỏ các vị trí None)
+        bench_champs = [c for c in self.bench if c is not None]
+        
+        # Lấy tướng từ bàn cờ
+        board_champs = self.get_board_champions()
+        
+        return bench_champs + board_champs
+        
+    def can_place_more(self):
+        """Kiểm tra xem số lượng tướng trên bàn đã đạt giới hạn level chưa 📏"""
+        return len(self.get_board_champions()) < self.level
+
+    def add_to_board_auto(self, champion):
+        """Tự động tìm ô trống để đặt tướng vào bàn cờ (dành cho Bot) 🤖"""
+        if not self.can_place_more():
+            return False
             
-            # Lấy tướng từ bàn cờ
-            board_champs = self.get_board_champions()
-            
-            return bench_champs + board_champs
+        # Tìm ô trống đầu tiên từ hàng 0 đến 3, cột 0 đến 6
+        for r in range(4):
+            for c in range(7):
+                if self.board.is_empty(r, c):
+                    try:
+                        self.board.place(champion, r, c)
+                        return True
+                    except:
+                        continue
+        return False
 
     def count_on_board(self):
         return len(self.get_board_champions())
