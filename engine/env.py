@@ -71,7 +71,7 @@ class TFTEnv(gym.Env):
         self.agent       = None
         self._prev_hp    = 100
         self._round_done = False
-        self._prev_combat_power = 0.0 # Theo dõi sức mạnh đội hình
+        self._prev_combat_power = 0.0 
 
     def _calculate_combat_power(self):
         """Tính toán sức mạnh thực tế của đội hình trên bàn cờ"""
@@ -79,11 +79,9 @@ class TFTEnv(gym.Env):
         board_champs = self.agent.get_board_champions()
         for champ in board_champs:
             base_cost = get_cost(self.champion_data, champ.name)
-            # Tướng 2 sao mạnh gấp 4 lần, 3 sao mạnh gấp 9 lần
             star_multiplier = champ.star ** 2 
             power += base_cost * star_multiplier
         
-        # Thưởng thêm cho các mốc Tộc/Hệ kích hoạt
         trait_counts = self._trait_mgr.count_traits(board_champs)
         for trait_name, count in trait_counts.items():
             trait = self._trait_mgr.traits.get(trait_name)
@@ -111,12 +109,12 @@ class TFTEnv(gym.Env):
 
     def step(self, action):
         assert self.game is not None, "Gọi reset() trước"
-        reward = -0.005 # Time penalty cực nhỏ cho mỗi hành động
+        reward = -0.005 # Phạt nhẹ để tránh AI đứng yên
         terminated = truncated = False
 
         valid = self._is_valid_action(action)
         if not valid:
-            reward -= 0.1 # Phạt hành động lỗi
+            reward -= 0.1 # Phạt hành động không hợp lệ
         else:
             reward += self._apply_action(action)
 
@@ -126,6 +124,10 @@ class TFTEnv(gym.Env):
             if self.game.is_game_over() or not self.agent.is_alive:
                 terminated = True
                 reward += self._end_game_reward()
+                # In thông tin khi AI chết để theo dõi tiến độ
+                final_stage = self.game.stage
+                final_round = self.game.round_num
+                print(f"--- Episode kết thúc tại Stage {final_stage}-{final_round} ---")
             else:
                 self._round_done = False
                 self.agent.econ.shop.roll(self.agent.level)
@@ -145,7 +147,7 @@ class TFTEnv(gym.Env):
             rel = action - ACTION_PLACE_BASE
             b_idx, bd_idx = rel // N_BOARD_SLOTS, rel % N_BOARD_SLOTS
             if b_idx >= N_BENCH_SLOTS or self.agent.bench[b_idx] is None: return False
-            return True # Cho phép swap/đè lên vị trí cũ
+            return True 
         return action == ACTION_PASS
 
     def _apply_action(self, action):
@@ -172,29 +174,32 @@ class TFTEnv(gym.Env):
             row, col = BOARD_POSITIONS[bd_idx]
             self.agent.place_on_board(b_idx, row, col)
 
-        # Thưởng chênh lệch sức mạnh sau hành động
         current_power = self._calculate_combat_power()
+        # Thưởng 0.1 cho mỗi đơn vị sức mạnh tăng thêm
         reward += (current_power - self._prev_combat_power) * 0.1
         self._prev_combat_power = current_power
         return reward
 
     def _run_round(self):
         self._run_bots()
-        results = self.game.simulate_round(verbose=False)
+        self.game.simulate_round(verbose=False)
         
-        # 1. Phạt tồn tại mỗi round
-        reward = -1.0 
-        # 2. HP Delta (với multiplier tăng theo Stage)
+        reward = -1.0 # Phạt tồn tại mỗi round
         hp_now = self.agent.hp
         hp_delta = hp_now - self._prev_hp
         self._prev_hp = hp_now
-        reward += hp_delta * (0.2 + self.game.stage * 0.1)
 
-        # 3. Bonus thắng round
+        # 1. Hình phạt mất máu lũy tiến theo Stage
+        if hp_delta < 0:
+            reward += hp_delta * (0.3 * self.game.stage)
+            reward -= 5.0 # Phạt thêm vì thua round
+        
+        # 2. Bonus thắng round PvP
         if hp_delta == 0 and self.game.is_pvp():
             reward += 3.0
-        # 4. Thưởng lợi tức
-        reward += min(self.agent.econ.gold // 10, 5) * 0.02
+        
+        # 3. Thưởng lợi tức kinh tế
+        reward += min(self.agent.econ.gold // 10, 5) * 0.05
         return reward
 
     def _end_game_reward(self):
