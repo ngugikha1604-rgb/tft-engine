@@ -300,12 +300,8 @@ class TFTEnv(gym.Env):
             if bought:
                 added = self.agent.add_to_bench(champ)
                 if not added:
-                    # Bench đầy → trả lại
                     econ.gold += cost
                     self.game.pool.return_champ(name)
-                else:
-                    # Thưởng nhỏ khi mua tướng cost cao hơn
-                    reward += cost * 0.05
 
         # Reroll
         elif action == ACTION_REROLL:
@@ -316,7 +312,7 @@ class TFTEnv(gym.Env):
             before = econ.level
             econ.buy_xp()
             if econ.level > before:
-                reward += 1.0   # Thưởng khi level up
+                reward += 0.5   # Gợi ý nhẹ khi level up
 
         # Bán bench
         elif action in ACTION_SELL_BENCH:
@@ -336,18 +332,57 @@ class TFTEnv(gym.Env):
             after_board = len(self.agent.get_board_champions())
 
             if after_board > before_board:
-                # Thưởng khi đặt được tướng lên board
-                reward += 0.3
+                # Gợi ý nhẹ khi đặt tướng
+                reward += 0.05
 
-                # Thưởng thêm nếu tạo ra trait mới
+                # Thưởng nhẹ nếu tạo trait mới
                 board_champs = self.agent.get_board_champions()
                 bonuses      = self._trait_mgr.calc_bonuses(board_champs)
-                active_now  = len(bonuses)
+                active_now   = len(bonuses)
                 if active_now > self._prev_trait_count:
-                    reward += 0.5 * (active_now - self._prev_trait_count)
+                    reward += 0.05 * (active_now - self._prev_trait_count)
                     self._prev_trait_count = active_now
 
+                # Thưởng positioning: tank hàng đầu, carry hàng sau
+                reward += self._positioning_reward(champ, row)
+
         return reward
+
+    def _positioning_reward(self, champ, row):
+        """
+        Thưởng nhỏ khi đặt đúng vị trí:
+        - Tank (HP cao) ở row 0-1 (hàng đầu)
+        - Carry/Mage (AD/mana cao) ở row 2-3 (hàng sau)
+        """
+        if champ is None:
+            return 0.0
+
+        hp  = getattr(champ, 'max_hp', 0)
+        ad  = getattr(champ, 'ad', 0)
+        mana= getattr(champ, 'max_mana', 0)
+
+        # Xác định role dựa theo chỉ số cao nhất
+        # Normalize: HP thường 500-1200, AD 50-150, mana 50-150
+        hp_score   = hp / 1000.0
+        ad_score   = ad / 100.0
+        mana_score = mana / 100.0
+
+        is_tank  = hp_score > ad_score and hp_score > mana_score
+        is_carry = ad_score >= hp_score or mana_score >= hp_score
+
+        front_row = row <= 1   # row 0-1 = hàng đầu
+        back_row  = row >= 2   # row 2-3 = hàng sau
+
+        if is_tank and front_row:
+            return 0.05     # tank đứng đúng chỗ
+        elif is_carry and back_row:
+            return 0.05     # carry đứng đúng chỗ
+        elif is_tank and back_row:
+            return -0.05    # tank đứng sai chỗ
+        elif is_carry and front_row:
+            return -0.05    # carry đứng sai chỗ
+
+        return 0.0
 
     # ==================
     # RUN ROUND
@@ -360,9 +395,8 @@ class TFTEnv(gym.Env):
         Trả về reward từ kết quả round.
         """
         # Snapshot trước combat
-        board_champs  = self.agent.get_board_champions()
-        board_size    = len(board_champs)
-        level_before  = self.agent.econ.level
+        board_champs = self.agent.get_board_champions()
+        board_size   = len(board_champs)
 
         # Bots reroll và mua tướng đơn giản
         self._run_bots()
@@ -370,48 +404,36 @@ class TFTEnv(gym.Env):
         # Chạy 1 round
         results = self.game.simulate_round(verbose=False)
 
-        reward = 0.0
+        # ── Base: phạt tồn tại mỗi round ─────────────
+        reward = -1.0
 
         # ── 1. HP delta ──────────────────────────────
         hp_now   = self.agent.hp
         hp_delta = hp_now - self._prev_hp
         self._prev_hp = hp_now
-        reward += hp_delta * 0.15   # mỗi HP mất = -0.15
+        reward += hp_delta * 0.2    # mỗi HP mất = -0.2
 
         # ── 2. Thắng/thua round ──────────────────────
         if hp_delta == 0 and self.game.is_pvp():
-            reward += 2.0           # Thắng không mất máu
+            reward += 3.0           # Thắng → bù được phạt tồn tại + dư
         elif hp_delta < 0:
-            reward -= 0.5           # Phạt thêm khi thua
+            reward -= 2.0           # Thua → phạt nặng thêm
 
-        # ── 3. Board size — khuyến khích đặt đủ tướng ─
-        if board_size > self._prev_board_size:
-            reward += 0.3 * (board_size - self._prev_board_size)
-        elif board_size == 0:
-            reward -= 1.0           # Phạt nặng nếu board trống
+        # ── 3. Board trống → phạt nặng ───────────────
+        if board_size == 0:
+            reward -= 3.0
         self._prev_board_size = board_size
 
-        # ── 4. Trait bonus ───────────────────────────
-        bonuses      = self._trait_mgr.calc_bonuses(board_champs)
-        trait_count  = len(bonuses)
-        if trait_count > 0:
-            reward += 0.2 * trait_count   # +0.2 mỗi trait active
+        # ── 4. Trait active → gợi ý nhẹ ─────────────
+        bonuses     = self._trait_mgr.calc_bonuses(board_champs)
+        trait_count = len(bonuses)
+        reward += 0.05 * trait_count
         self._prev_trait_count = trait_count
 
         # ── 5. Interest / economy ────────────────────
         gold_now = self.agent.econ.gold
         interest = min(gold_now // 10, 5)
-        if interest >= 3:
-            reward += 0.1 * interest    # Thưởng nhỏ khi giữ gold tốt
-
-        # ── 6. Vị trí trong game ─────────────────────
-        standings = self.game.get_standings()
-        rank = next((i for i, p in enumerate(standings)
-                     if p is self.agent), 7)
-        if rank == 0:
-            reward += 1.5
-        elif rank <= 3:
-            reward += 0.5
+        reward += 0.02 * interest   # +0.02 mỗi lợi tức
 
         return reward
 
@@ -427,16 +449,16 @@ class TFTEnv(gym.Env):
 
         # rank 0 = 1st, rank 7 = 8th
         PLACEMENT_REWARD = {
-            0: 20.0,    # 1st
-            1: 10.0,    # 2nd
-            2:  5.0,    # 3rd
-            3:  2.0,    # 4th
-            4: -2.0,    # 5th
-            5: -5.0,    # 6th
-            6: -8.0,    # 7th
-            7:-10.0,    # 8th
+            0:  20.0,   # 1st
+            1:  10.0,   # 2nd
+            2:   5.0,   # 3rd
+            3:   1.0,   # 4th
+            4:  -5.0,   # 5th
+            5: -10.0,   # 6th
+            6: -15.0,   # 7th
+            7: -30.0,   # 8th
         }
-        return PLACEMENT_REWARD.get(rank, -10.0)
+        return PLACEMENT_REWARD.get(rank, -30.0)
 
     # ==================
     # OBSERVATION
