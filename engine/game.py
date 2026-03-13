@@ -167,6 +167,18 @@ class Player:
                 if champ:
                     result.append(champ)
         return result
+    def get_all_champions(self):
+            """
+            Trả về danh sách tất cả Champion instance mà người chơi đang sở hữu
+            bao gồm cả trên bàn cờ (board) và hàng chờ (bench). 🏆
+            """
+            # Lấy tướng từ hàng chờ (loại bỏ các vị trí None)
+            bench_champs = [c for c in self.bench if c is not None]
+            
+            # Lấy tướng từ bàn cờ
+            board_champs = self.get_board_champions()
+            
+            return bench_champs + board_champs
 
     def count_on_board(self):
         return len(self.get_board_champions())
