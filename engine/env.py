@@ -88,7 +88,15 @@ class TFTEnv(gym.Env):
 
     def get_action_mask(self):
         """Mask cho agent — dùng bởi ActionMasker wrapper"""
-        return self._get_action_mask_for(self.agent)
+        if self.agent is None or self.game is None:
+            mask = np.zeros(TOTAL_ACTIONS, dtype=np.int8)
+            mask[ACTION_PASS] = 1
+            return mask
+        mask = self._get_action_mask_for(self.agent)
+        # Đảm bảo luôn có ít nhất 1 action hợp lệ
+        if mask.sum() == 0:
+            mask[ACTION_PASS] = 1
+        return mask
 
     # ==================
     # CORE ENV FUNCTIONS
