@@ -290,9 +290,14 @@ class TFTEnv(gym.Env):
             
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
-                standings  = self.game.get_standings()
-                rank       = next(i for i, p in enumerate(standings) if p is self.agent)
-                reward    += {0:50, 1:30, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+
+                # Tính rank dựa trên số player còn sống nhiều HP hơn agent
+                agent_hp  = self.agent.hp
+                rank      = sum(
+                    1 for p in self.game.players
+                    if p is not self.agent and p.hp > agent_hp
+                )
+                reward += {0:50, 1:30, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
                 self._episode_placements.append(rank + 1)   # rank 0 = top1
