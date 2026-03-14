@@ -519,6 +519,10 @@ class TFTEnv(gym.Env):
     def _get_action_mask_for(self, player):
         """Build action mask cho player bất kỳ (không chỉ agent)"""
         mask = np.zeros(TOTAL_ACTIONS, dtype=np.int8)
+        # Safety check
+        if player is None or not player.is_alive:
+            mask[ACTION_PASS] = 1
+            return mask
         econ = player.econ
 
         for i in range(N_SHOP_SLOTS):
@@ -552,6 +556,9 @@ class TFTEnv(gym.Env):
                     mask[action_id] = 1
 
         mask[ACTION_PASS] = 1
+        # Final safety — không bao giờ trả về all-zero
+        if mask.sum() == 0:
+            mask[ACTION_PASS] = 1
         return mask
 
     def _get_obs(self, player):
