@@ -7,44 +7,30 @@ import random
 # ==================
 
 class ItemAbility:
-    """
-    Mô tả cơ chế đặc biệt của trang bị.
-    Logic thực tế nằm trong hàm `trigger()`.
-    """
     def __init__(self, name, trigger_type, description, handler=None, cooldown=0.0):
         self.name         = name
         self.trigger_type = trigger_type    # passive, on_attack, on_hit, etc.
         self.description  = description
         self.handler      = handler         # Hàm xử lý: f(owner, context)
         self.cooldown     = cooldown        # Cooldown giữa các lần trigger (giây)
-        self._last_trigger = -999.0         # Thời điểm lần trigger gần nhất
+        self._last_trigger = -999.0         
 
     def trigger(self, owner, context):
-        """Gọi ability với context chứa thông tin trận đấu"""
         current_time = context.get("time", 0.0)
         if current_time - self._last_trigger < self.cooldown:
             return
-
         self._last_trigger = current_time
         if self.handler:
             self.handler(owner, context)
 
     def reset(self):
-        """Reset cooldown về đầu trận"""
         self._last_trigger = -999.0
 
-    def __repr__(self):
-        return f"ItemAbility({self.name}, trigger={self.trigger_type})"
-
-
 # ==================
-# ITEM CLASS
+# ITEM CLASS (Đã khôi phục đầy đủ các hàm)
 # ==================
 
 class Item:
-    """
-    Trang bị TFT. Quản lý việc cộng/trừ chỉ số và kích hoạt kỹ năng.
-    """
     def __init__(self, item_id, name, item_type, stat_bonuses=None,
                  ability=None, components=None, description=""):
         self.item_id      = item_id         
@@ -56,32 +42,31 @@ class Item:
         self.description  = description
 
     def equip(self, champion):
-        """Lắp đồ lên tướng"""
+        """Lắp đồ lên tướng và cộng chỉ số"""
         if len(champion.items) >= 3:
             return False
-
         # 1. Cộng chỉ số trực tiếp
         self._apply_stats(champion, multiply=1)
         # 2. Thêm vào danh sách của tướng
         champion.items.append(self)
-        # 3. Reset cooldown
+        # 3. Reset cooldown kỹ năng của đồ
         if self.ability:
             self.ability.reset()
         return True
 
     def unequip(self, champion):
-        """Gỡ trang bị (khi bán tướng)"""
+        """Tháo đồ và trừ lại chỉ số (Dùng khi bán tướng)"""
         if self not in champion.items:
             return
         self._apply_stats(champion, multiply=-1)
         champion.items.remove(self)
 
     def _apply_stats(self, champion, multiply=1):
-        """Xử lý cộng/trừ chỉ số (multiply=1 để cộng, -1 để trừ)"""
+        """Hàm quan trọng: Xử lý logic cộng/trừ chỉ số"""
         for stat, value in self.stat_bonuses.items():
             v = value * multiply
             if hasattr(champion, stat):
-                # Các chỉ số đặc biệt cần xử lý logic riêng
+                # Các chỉ số đặc biệt cần xử lý max/current
                 if stat == "hp":
                     champion.max_hp += v
                     champion.hp += v
@@ -89,41 +74,30 @@ class Item:
                     champion.max_mana += int(v)
                     champion.mana = min(champion.mana, champion.max_mana)
                 else:
-                    # Các chỉ số thông thường (ad, armor, mr, attack_speed...)
+                    # Các chỉ số thông thường: ad, armor, mr, attack_speed, ability_power...
                     setattr(champion, stat, getattr(champion, stat) + v)
 
-    def __repr__(self):
-        return f"Item({self.name}, {self.item_type})"
-
-
 # ==================
-# ABILITY HANDLERS (Logic chi tiết - Đã sửa lỗi khớp với champion.py)
+# ABILITY HANDLERS (Logic chiến đấu)
 # ==================
 
 def handler_warmogs(owner, ctx):
-    """Warmog: Hồi 0.25% máu mỗi tick nếu không nhận sát thương 3s"""
     time = ctx.get("time", 0)
     if time - getattr(owner, "last_damage_time", -999) > 3.0:
         owner.heal(owner.max_hp * 0.0025)
 
 def handler_bt(owner, ctx):
-    """Bloodthirster: Khi máu < 40%, tạo lá chắn 25% máu tối đa"""
     if owner.hp < owner.max_hp * 0.4 and not getattr(owner, "_bt_shield_used", False):
-        shield_amount = int(owner.max_hp * 0.25)
-        # Gọi add_shield khớp với champion.py
-        owner.add_shield(shield_amount, duration=5.0) 
+        owner.add_shield(int(owner.max_hp * 0.25), duration=5.0) 
         owner._bt_shield_used = True
 
 def handler_shojin(owner, ctx):
-    """Shojin: Dùng gain_mana để an toàn"""
     owner.gain_mana(5)
 
 def handler_blue(owner, ctx):
-    """Blue Buff: Đặt mana về 20 sau khi dùng chiêu"""
     owner.mana = 20
 
 def handler_titans(owner, ctx):
-    """Titan's Resolve: Tích cộng dồn AD/AP"""
     stacks = getattr(owner, "_titans_stacks", 0)
     if stacks < 25:
         owner._titans_stacks = stacks + 1
@@ -134,12 +108,21 @@ def handler_titans(owner, ctx):
             owner.mr += 20
 
 def handler_guinsoo(owner, ctx):
-    """Guinsoo: Tăng tốc độ đánh mỗi đòn"""
     owner.attack_speed = min(owner.attack_speed + 0.05, 5.0)
 
 # ==================
-# ITEM REGISTRY
+# REGISTRY & EXPORTS (Sửa lỗi ImportError)
 # ==================
+
+# Biến này PHẢI nằm ngoài cùng để file game.py import được
+ABILITY_HANDLERS = {
+    "warmogs_armor": handler_warmogs,
+    "bloodthirster": handler_bt,
+    "spear_of_shojin": handler_shojin,
+    "blue_buff": handler_blue,
+    "titans_resolve": handler_titans,
+    "guinsoos_rageblade": handler_guinsoo
+}
 
 class ItemRegistry:
     def __init__(self):
@@ -156,22 +139,12 @@ class ItemRegistry:
         return self._items.get(item_id)
 
     def load_from_data(self, data):
-        """Load từ JSON và gắn Handlers"""
-        handlers = {
-            "warmogs_armor": handler_warmogs,
-            "bloodthirster": handler_bt,
-            "spear_of_shojin": handler_shojin,
-            "blue_buff": handler_blue,
-            "titans_resolve": handler_titans,
-            "guinsoos_rageblade": handler_guinsoo
-        }
-
+        """Hàm load dữ liệu từ JSON"""
         for entry in data.get("items", []):
             ability = None
             if "ability" in entry:
                 ab_data = entry["ability"]
-                # Lấy đúng handler theo id trong JSON
-                h = handlers.get(entry["id"])
+                h = ABILITY_HANDLERS.get(entry["id"])
                 ability = ItemAbility(
                     name=ab_data.get("name", ""),
                     trigger_type=ab_data.get("trigger", "passive"),
