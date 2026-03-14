@@ -64,7 +64,7 @@ def transfer_model(
         print(f"\n[Transfer] Tạo model mới...")
 
     model_new = PPO(
-        'MlpPolicy',
+        'MultiInputPolicy',
         new_env,
         n_epochs  = model_old.n_epochs,
         ent_coef  = model_old.ent_coef,
