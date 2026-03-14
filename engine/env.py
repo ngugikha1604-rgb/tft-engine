@@ -154,6 +154,9 @@ class TFTEnv(gym.Env):
 
         self._setup_initial_units()
 
+        # Roll shop đầu tiên cho agent
+        self.agent.econ.shop.roll(self.agent.econ.level)
+
         # Tracking cho stats in ra
         self._episode_count    = getattr(self, '_episode_count', 0) + 1
         self._episode_rewards  = []
