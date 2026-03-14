@@ -1,0 +1,124 @@
+{
+  "items": [
+    {
+      "id": "Infinity_Edge",
+      "name": "Vô Cực Kiếm",
+      "type": "combined",
+      "stats": { "attack_damage": 35, "crit_chance": 35 },
+      "ability": { 
+        "name": "Vô Cực Kiếm", 
+        "trigger": "passive", 
+        "description": "Tăng mạnh sát thương chí mạng.", 
+        "handler": "handler_ie" 
+      }
+    },
+    {
+      "id": "Rabadon_Deathcap",
+      "name": "Mũ Phù Thủy Rabadon",
+      "type": "combined",
+      "stats": { "ability_power": 70 },
+      "ability": { 
+        "name": "Mũ Phù Thủy", 
+        "trigger": "passive", 
+        "description": "Tăng cực mạnh sức mạnh phép thuật.", 
+        "handler": "handler_rabadon" 
+      }
+    },
+    {
+      "id": "Warmog_Armor",
+      "name": "Giáp Máu Warmog",
+      "type": "combined",
+      "stats": { "hp": 600 },
+      "ability": { 
+        "name": "Giáp Máu Warmog", 
+        "trigger": "passive", 
+        "description": "Tăng một lượng lớn máu tối đa.", 
+        "handler": "handler_warmogs" 
+      }
+    },
+    {
+      "id": "Guinsoo_Rageblade",
+      "name": "Cuồng Đao Guinsoo",
+      "type": "combined",
+      "stats": { "attack_speed": 15, "ability_power": 10, "attack_damage": 10 },
+      "ability": { 
+        "name": "Cuồng Đao Guinsoo", 
+        "trigger": "on_attack", 
+        "description": "Mỗi đòn đánh tăng thêm tốc độ đánh.", 
+        "handler": "handler_guinsoo" 
+      }
+    },
+    {
+      "id": "Spear_of_Shojin",
+      "name": "Ngọn Giáo Shojin",
+      "type": "combined",
+      "stats": { "attack_damage": 20, "ability_power": 20, "mana_start": 15 },
+      "ability": { 
+        "name": "Ngọn Giáo Shojin", 
+        "trigger": "on_attack", 
+        "description": "Đòn đánh hồi thêm mana.", 
+        "handler": "handler_shojin" 
+      }
+    },
+    {
+      "id": "Bramble_Vest",
+      "name": "Giáp Gai",
+      "type": "combined",
+      "stats": { "armor": 55 },
+      "ability": { 
+        "name": "Giáp Gai", 
+        "trigger": "on_damage_taken", 
+        "description": "Phản lại sát thương phép khi bị tấn công.", 
+        "handler": "handler_bramble" 
+      }
+    },
+    {
+      "id": "Dragon_Claw",
+      "name": "Vuốt Rồng",
+      "type": "combined",
+      "stats": { "mr": 65 },
+      "ability": { 
+        "name": "Vuốt Rồng", 
+        "trigger": "passive", 
+        "description": "Tăng mạnh kháng phép và hồi máu mỗi giây.", 
+        "handler": "handler_dragon_claw" 
+      }
+    },
+    {
+      "id": "Bloodthirster",
+      "name": "Huyết Kiếm",
+      "type": "combined",
+      "stats": { "attack_damage": 20, "mr": 20 },
+      "ability": { 
+        "name": "Huyết Kiếm", 
+        "trigger": "passive", 
+        "description": "Hút máu toàn phần và nhận lá chắn khi thấp máu.", 
+        "handler": "handler_bt" 
+      }
+    },
+    {
+      "id": "Blue_Buff",
+      "name": "Bùa Xanh",
+      "type": "combined",
+      "stats": { "mana_start": 30, "ability_power": 20 },
+      "ability": { 
+        "name": "Bùa Xanh", 
+        "trigger": "on_cast", 
+        "description": "Giảm năng lượng tối đa.", 
+        "handler": "handler_blue" 
+      }
+    },
+    {
+      "id": "Titan_Resolve",
+      "name": "Quyền Năng Khổng Lồ",
+      "type": "combined",
+      "stats": { "attack_damage": 10, "armor": 20 },
+      "ability": { 
+        "name": "Quyền Năng Khổng Lồ", 
+        "trigger": "on_damage_taken", 
+        "description": "Nhận thêm AD/AP khi nhận sát thương.", 
+        "handler": "handler_titans" 
+      }
+    }
+  ]
+}

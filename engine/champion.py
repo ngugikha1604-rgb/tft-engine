@@ -1,254 +1,202 @@
-# champion.py - Class đại diện cho một champion trong TFT Set 16
+# champion.py - Class Champion đầy đủ và chuẩn hóa cho TFT Set 16 🏆
+
+import random
 
 class Champion:
     def __init__(
-        self,
-        name,
-        cost,
-        hp,
-        armor,
-        mr,
-        attack_damage,
-        attack_speed,
-        range_,
-        traits,
-        mana_start=0,
-        mana_max=100,
-        crit_chance=0.25,       # Base crit chance mặc định 25%
-        crit_damage=1.4,        # Base crit damage 140%
+        self, name, cost, hp, armor, mr, attack_damage, attack_speed, range_, traits,
+        mana_start=0, mana_max=100, crit_chance=0.25, crit_damage=1.4
     ):
-        # ==================
-        # Thông tin cơ bản
-        # ==================
+        # Thông tin cơ bản 📄
         self.name = name
-        self.cost = cost            # Chi phí mua (1-5 gold)
-        self.traits = traits        # Danh sách traits, ví dụ ["Mage", "Ionia"]
+        self.cost = cost
+        self.traits = traits
 
-        # ==================
-        # Base stats (không đổi, dùng để tính lại khi lên sao)
-        # ==================
+        # Base stats gốc (Dùng làm mốc để nhân hệ số khi nâng sao) 🧬
         self.base_hp = hp
         self.base_armor = armor
         self.base_mr = mr
         self.base_ad = attack_damage
-        self.base_as = attack_speed     # Số lần attack/giây
-        self.base_range = range_        # Ô tấn công (1=melee, 2-4=ranged)
+        self.base_as = attack_speed
+        self.base_range = range_
         self.base_mana_max = mana_max
-        self.base_crit_chance = crit_chance
-        self.base_crit_damage = crit_damage
 
-        # ==================
-        # Current stats (thay đổi khi có items/buffs/traits)
-        # ==================
-        self.max_hp = hp
+        # Chỉ số hiện tại (Sau khi tính sao và trang bị) ⚔️
+        self.star = 1
         self.hp = hp
+        self.max_hp = hp
         self.armor = armor
         self.mr = mr
         self.ad = attack_damage
         self.attack_speed = attack_speed
         self.range = range_
-
-        # Mana — mỗi champion có mana_start và mana_max riêng
         self.mana = mana_start
-        self.mana_start = mana_start    # Mana bắt đầu mỗi trận
+        self.mana_start = mana_start
         self.max_mana = mana_max
+        self.crit_chance = crit_chance
+        self.crit_damage = crit_damage
+        self.ability_power = 100 
+        self.damage_amp = 0.0
+        self.damage_reduction = 0.0
+        self.omnivamp = 0.0
 
-        # Crit
-        self.crit_chance = crit_chance  # 0.0 - 1.0
-        self.crit_damage = crit_damage  # 1.4 = 140%
-
-        # Damage modifiers
-        self.damage_amp = 0.0           # % khuếch đại damage đầu ra (additive)
-        self.damage_reduction = 0.0     # % giảm damage nhận vào (sau giáp/mr)
-        self.omnivamp = 0.0             # % heal từ damage dealt
-
-        # Ability Power
-        self.ability_power = 100        # Base AP = 100 trong TFT
-
-        # ==================
-        # Role (từ Roles Revamped Set 15+)
-        # tank | fighter | assassin | marksman | caster | specialist
-        # ==================
-        self.role = "fighter"   # Default, override khi load từ JSON
-
-        # ==================
-        # Star level
-        # ==================
-        self.star = 1
-
-        # ==================
-        # Vị trí trên bàn
-        # ==================
-        self.position = None            # (row, col) trên hex board
-
-        # ==================
-        # Combat state
-        # ==================
+        # Trạng thái chiến đấu 🛡️
         self.is_alive = True
-        self.attack_timer = 0.0         # Giây đến lần attack tiếp theo
-        self.shields = []               # List các shield đang active [{amount, duration}]
-        self.buffs = []                 # List buffs đang active
-        self.current_target = None      # Target đang attack
+        self.items = []                 # Khởi tạo danh sách đồ rỗng
+        self.shields = []               # Lưu trữ: [{"amount": float, "duration": float}]
+        self.buffs = []
+        self.attack_timer = 0.0
+        self.mana_lock_timer = 0.0
+        self.last_damage_time = -999.0  # Quan trọng cho các trang bị hồi phục như Warmog
+        self.current_target = None
+        self.position = None
 
     # ==================
-    # STAR UPGRADE
+    # CORE UPDATE & ITEM LOGIC
     # ==================
 
-    def upgrade_star(self):
-        """Lên sao — TFT dùng multiplier 1.8x mỗi sao"""
-        if self.star >= 3:
-            return
-        self.star += 1
-        multiplier = 1.8 if self.star == 2 else 1.8 ** 2
-        self.max_hp = int(self.base_hp * multiplier)
-        self.hp = self.max_hp
-        self.ad = int(self.base_ad * multiplier)
-
-    # ==================
-    # DAMAGE SYSTEM
-    # ==================
-
-    def take_damage(self, raw_damage, damage_type="physical", damage_amp_bonus=0.0):
-        """
-        Tính và nhận damage theo công thức TFT:
-        1. Damage Amp (từ attacker) nhân vào raw damage
-        2. Crit (đã tính trước khi gọi hàm này)
-        3. Giảm từ armor/mr
-        4. Damage Reduction (DR) của target trừ sau cùng
-        5. Shield hấp thụ trước HP
-        """
+    def update(self, delta_time, tick_count):
+        """Cập nhật trạng thái Champion mỗi tick của trận đấu ⏱️"""
         if not self.is_alive:
-            return 0.0
+            return
 
-        # Bước 1: Áp Damage Amp (tính từ attacker, truyền vào)
-        damage = raw_damage * (1 + damage_amp_bonus)
+        # 1. Cập nhật thời gian lá chắn
+        for s in self.shields:
+            s["duration"] -= delta_time
+        self.shields = [s for s in self.shields if s["duration"] > 0]
 
-        # Bước 2: Giảm từ giáp/mr
-        if damage_type == "physical":
-            effective_armor = max(0, self.armor)
-            reduction = effective_armor / (effective_armor + 100)
-            damage *= (1 - reduction)
-        elif damage_type == "magic":
-            effective_mr = max(0, self.mr)
-            reduction = effective_mr / (effective_mr + 100)
-            damage *= (1 - reduction)
-        # true damage: không bị giảm bởi giáp/mr
+        # 2. Tạo context cho trang bị
+        ctx = {
+            "time": tick_count * delta_time,
+            "tick": tick_count,
+            "hp_percent": self.hp / self.max_hp if self.max_hp > 0 else 0
+        }
 
-        # Bước 3: Damage Reduction của target (sau giáp/mr)
-        damage *= (1 - self.damage_reduction)
+        # 3. Kích hoạt Passive Items (Huyết Kiếm, Giáp Máu...) 💎
+        for item in self.items:
+            if hasattr(item, 'ability') and item.ability and item.ability.trigger_type == "passive":
+                item.ability.trigger(self, ctx)
 
-        damage = max(0, damage)
+        # 4. Giảm các bộ đếm thời gian
+        if self.attack_timer > 0:
+            self.attack_timer -= delta_time
+        if self.mana_lock_timer > 0:
+            self.mana_lock_timer -= delta_time
 
-        # Bước 4: Shield hấp thụ trước
-        remaining = damage
-        for shield in self.shields[:]:
-            if shield["amount"] >= remaining:
-                shield["amount"] -= remaining
-                remaining = 0
-                break
+    # ==================
+    # CALCULATIONS & DAMAGE 🔢
+    # ==================
+
+    def calc_crit(self):
+        """Tính toán xem đòn đánh có chí mạng hay không 🎯"""
+        is_crit = random.random() < self.crit_chance
+        multiplier = self.crit_damage if is_crit else 1.0
+        return is_crit, multiplier
+
+    def take_damage(self, amount, damage_type="physical", attacker=None, damage_amp_bonus=0.0):
+        """Nhận sát thương, ưu tiên trừ vào lá chắn 🛡️"""
+        if not self.is_alive or amount <= 0:
+            return
+            
+        # Tính toán giảm trừ (Armor/MR)
+        res = self.armor if damage_type == "physical" else self.mr
+        reduction = res / (res + 100)
+        actual_damage = amount * (1 + damage_amp_bonus) * (1 - reduction) * (1 - self.damage_reduction)
+        actual_damage = max(0, actual_damage)
+
+        remaining_damage = actual_damage
+        
+        # Trừ vào lá chắn trước
+        while remaining_damage > 0 and self.shields:
+            current_shield = self.shields[0]
+            if current_shield["amount"] > remaining_damage:
+                current_shield["amount"] -= remaining_damage
+                remaining_damage = 0
             else:
-                remaining -= shield["amount"]
-                self.shields.remove(shield)
+                remaining_damage -= current_shield["amount"]
+                self.shields.pop(0)
 
-        # Bước 5: Trừ HP
-        self.hp -= remaining
+        # Trừ vào máu nếu vẫn còn sát thương
+        if remaining_damage > 0:
+            self.hp -= remaining_damage
+            self.last_damage_time = 0 # Ghi nhận vừa bị trúng đòn (dùng logic đơn giản cho simulator)
+            
         if self.hp <= 0:
             self.hp = 0
             self.is_alive = False
-
-        # Mana khi bị đánh (10 mana per hit, tối đa 42.5 theo TFT)
+        
+        # Nhận mana khi bị tấn công
         self.gain_mana(10)
 
-        return damage  # Trả về actual damage để tính omnivamp
-
-    def calc_crit(self, base_damage):
-        """Tính damage có crit hay không, trả về (final_damage, is_crit)"""
-        import random
-        if random.random() < self.crit_chance:
-            return base_damage * self.crit_damage, True
-        return base_damage, False
-
-    def deal_damage_to(self, target, damage_type="physical"):
-        """
-        Attack target — tính crit rồi gọi target.take_damage()
-        Tự động tính omnivamp heal
-        """
-        raw = self.ad if damage_type == "physical" else self.ad
-        damage_after_crit, is_crit = self.calc_crit(raw)
-
-        actual = target.take_damage(
-            damage_after_crit,
-            damage_type=damage_type,
-            damage_amp_bonus=self.damage_amp
-        )
-
-        # Omnivamp heal
-        if self.omnivamp > 0 and actual > 0:
-            self.heal(actual * self.omnivamp)
-
-        # Mana khi attack
-        self.gain_mana(10)
-
-        return actual, is_crit
-
-    # ==================
-    # HEALING & MANA
-    # ==================
+    def deal_damage_to(self, target, damage_amount, damage_type="physical"):
+        """Gây sát thương lên mục tiêu khác ⚔️"""
+        if target and target.is_alive:
+            is_crit, multiplier = self.calc_crit()
+            final_damage = damage_amount * multiplier
+            
+            target.take_damage(final_damage, damage_type, attacker=self, damage_amp_bonus=self.damage_amp)
+            
+            if self.omnivamp > 0:
+                self.heal(final_damage * self.omnivamp)
+            
+            self.gain_mana(10)
 
     def heal(self, amount):
-        """Hồi máu, không vượt max_hp"""
-        self.hp = min(self.max_hp, self.hp + amount)
+        """Hồi máu (không vượt quá máu tối đa) 💚"""
+        if self.is_alive:
+            self.hp = min(self.max_hp, self.hp + amount)
 
-    def add_shield(self, amount, duration=5.0):
-        """Thêm shield"""
+    def add_shield(self, amount, duration):
+        """Thêm lá chắn mới (Thống nhất tên hàm với items.py) 🛡️"""
         self.shields.append({"amount": amount, "duration": duration})
 
+    # ==================
+    # MANA MANAGEMENT 💧
+    # ==================
+
     def gain_mana(self, amount):
-        """Nhận mana"""
-        self.mana = min(self.max_mana, self.mana + amount)
+        """Nhận mana (nếu không trong trạng thái mana lock)"""
+        if self.mana_lock_timer <= 0:
+            self.mana = min(self.max_mana, self.mana + amount)
 
     def can_cast(self):
-        """Đủ mana để cast chưa"""
+        """Kiểm tra xem đã đủ mana để tung chiêu chưa"""
         return self.mana >= self.max_mana
 
     def spend_mana(self):
-        """Reset mana sau khi cast"""
+        """Reset mana về 0 sau khi dùng chiêu"""
         self.mana = 0
 
     # ==================
-    # COMBAT RESET
+    # PROGRESSION & BUFFS ⭐
     # ==================
 
-    def reset_for_combat(self):
-        """Reset về trạng thái đầu trận"""
-        self.hp = self.max_hp
-        self.mana = self.mana_start
-        self.is_alive = True
-        self.attack_timer = 0.0
-        self.shields = []
-        self.buffs = []
-        self.current_target = None
-        self.mana_lock_timer = 0.0
-        self.move_cooldown = 0.0
+    def upgrade_star(self):
+        """Nâng sao và cập nhật chỉ số (2 sao x1.8, 3 sao x3.24)"""
+        if self.star < 3:
+            self.star += 1
+            multiplier = 1.8 ** (self.star - 1)
+            self.max_hp = int(self.base_hp * multiplier)
+            self.hp = self.max_hp
+            self.ad = int(self.base_ad * multiplier)
 
-    # ==================
-    # STAT MODIFIERS
-    # ==================
+    def apply_sunder(self, percentage):
+        """Giảm giáp (Armor) theo % 📉"""
+        self.armor = max(0, self.armor * (1 - percentage))
 
-    def apply_sunder(self, amount):
-        """Sunder — giảm armor (tối thiểu 0)"""
-        self.armor = max(0, self.armor - amount)
+    def apply_shred(self, percentage):
+        """Giảm kháng phép (MR) theo % 📉"""
+        self.mr = max(0, self.mr * (1 - percentage))
 
-    def apply_shred(self, amount):
-        """Shred — giảm MR (tối thiểu 0)"""
-        self.mr = max(0, self.mr - amount)
+    def equip_item(self, item):
+        """Trang bị vật phẩm và cộng chỉ số trực tiếp"""
+        if len(self.items) < 3:
+            self.items.append(item)
+            for stat, bonus in item.stat_bonuses.items():
+                if hasattr(self, stat):
+                    setattr(self, stat, getattr(self, stat) + bonus)
+            return True
+        return False
 
     def __repr__(self):
-        stars = "★" * self.star
-        return (
-            f"{self.name}({stars}) "
-            f"HP:{self.hp:.0f}/{self.max_hp} "
-            f"AD:{self.ad} AS:{self.attack_speed} "
-            f"Armor:{self.armor} MR:{self.mr} "
-            f"Mana:{self.mana}/{self.max_mana}"
-        )
+        return f"<{self.name} {self.star}★ | HP: {int(self.hp)}/{self.max_hp} | MP: {self.mana}/{self.max_mana}>"
