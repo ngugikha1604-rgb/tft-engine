@@ -15,6 +15,13 @@ from game import Game
 from econ import ChampionPool
 from traits import TraitManager, DEFAULT_TRAITS
 
+# MaskablePPO import cho ModelBot — optional, không crash nếu chưa cài
+try:
+    from sb3_contrib import MaskablePPO
+    _SB3_CONTRIB = True
+except ImportError:
+    _SB3_CONTRIB = False
+
 # ==================
 # HẰNG SỐ 
 # ==================
@@ -40,75 +47,48 @@ def get_cost(champion_data, name, default=1):
     return val['cost'] if isinstance(val, dict) else val
 
 class TFTEnv(gym.Env):
-    def __init__(self, champion_data, item_data=None, augment_data=None, render_mode=None):
+    def __init__(self, champion_data, item_data=None, augment_data=None,
+                 model_bot_path=None, render_mode=None):
         super().__init__()
         self.champion_data = champion_data
-        self.item_data = item_data or {}
-        self.champ_id_map = {name: i + 1 for i, name in enumerate(sorted(champion_data.keys()))}
-        self.n_champions = len(champion_data)
-        
+        self.item_data     = item_data or {}
+        self.champ_id_map  = {name: i+1 for i, name in enumerate(sorted(champion_data.keys()))}
+        self.n_champions   = len(champion_data)
+
         # Mapping Item
-        self.item_list = sorted(list(self.item_data.keys())) if self.item_data else []
-        self.item_id_map = {name: i + 1 for i, name in enumerate(self.item_list)}
+        self.item_list    = sorted(list(self.item_data.keys())) if self.item_data else []
+        self.item_id_map  = {name: i+1 for i, name in enumerate(self.item_list)}
 
         self.trait_id_list = sorted([k for k in DEFAULT_TRAITS.keys() if not k.startswith("_")])
-        self._trait_mgr = TraitManager(None)
+        self._trait_mgr    = TraitManager(None)
 
         self.action_space = spaces.Discrete(TOTAL_ACTIONS)
-        # Để dùng Action Masking, observation thường được bọc trong dict
         self.observation_space = spaces.Dict({
             "action_mask": spaces.Box(0, 1, shape=(TOTAL_ACTIONS,), dtype=np.int8),
             "observation": spaces.Box(low=0.0, high=1.0, shape=(OBS_SIZE,), dtype=np.float32)
         })
 
-        self.game = None
-        self.agent = None
-        self._prev_hp = 100
-        self._prev_combat_power = 0.0
+        # ModelBot — load 1 lần duy nhất khi khởi tạo
+        self._model_bot = None
+        if model_bot_path and _SB3_CONTRIB:
+            try:
+                self._model_bot = MaskablePPO.load(model_bot_path, device='cpu')
+                print(f"[ModelBot] Loaded: {model_bot_path}")
+            except Exception as e:
+                print(f"[ModelBot] Load failed: {e}")
+
+        self.game   = None
+        self.agent  = None
+        self._prev_hp             = 100
+        self._prev_combat_power   = 0.0
 
     # ==================
     # ACTION MASKING LOGIC 🎭
     # ==================
 
     def get_action_mask(self):
-        """Tạo mask 1 cho hành động hợp lệ, 0 cho không hợp lệ ✅"""
-        mask = np.zeros(TOTAL_ACTIONS, dtype=np.int8)
-        econ = self.agent.econ
-
-        # 1. Mask Mua Shop
-        for i in range(N_SHOP_SLOTS):
-            name = econ.shop.slots[i]
-            if name and econ.gold >= get_cost(self.champion_data, name) and None in self.agent.bench:
-                mask[i] = 1
-
-        # 2. Mask Reroll & XP
-        if econ.gold >= 2: mask[ACTION_REROLL] = 1
-        if econ.gold >= 4 and econ.level < 10: mask[ACTION_BUY_XP] = 1
-
-        # 3. Mask Bán Bench
-        for i in range(N_BENCH_SLOTS):
-            if self.agent.bench[i] is not None:
-                mask[7 + i] = 1
-
-        # 4. Mask Xếp Bài (Bench -> Board)
-        for b_idx in range(N_BENCH_SLOTS):
-            if self.agent.bench[b_idx] is not None:
-                start_idx = ACTION_PLACE_BASE + (b_idx * N_BOARD_SLOTS)
-                mask[start_idx : start_idx + N_BOARD_SLOTS] = 1
-
-        # 5. Mask Lắp Đồ 🎒
-        # Điều kiện: Có đồ trong item_bench AND tướng trên board < 3 đồ
-        for i_idx in range(min(len(self.agent.item_bench), N_ITEM_SLOTS)):
-            for b_idx in range(N_BOARD_SLOTS):
-                r, c = BOARD_POSITIONS[b_idx]
-                champ = self.agent.board.get(r, c)
-                if champ and len(champ.items) < 3:
-                    action_id = ACTION_EQUIP_ITEM_BASE + (i_idx * N_BOARD_SLOTS) + b_idx
-                    mask[action_id] = 1
-
-        # 6. Luôn cho phép Pass
-        mask[ACTION_PASS] = 1
-        return mask
+        """Mask cho agent — dùng bởi ActionMasker wrapper"""
+        return self._get_action_mask_for(self.agent)
 
     # ==================
     # CORE ENV FUNCTIONS
@@ -142,37 +122,96 @@ class TFTEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        player_names = ["Agent", "HardBot", "Bot2", "Bot3", "Bot4", "Bot5", "Bot6", "Bot7"]
-        
-        self.game = Game(player_names, self.champion_data, self.item_data, {})
+
+        # 8 players: Agent + 4 loại bot + 3 random
+        player_names = [
+            "Agent",
+            "EconBot",       # giữ gold, level up đúng lúc
+            "RerollBot",     # reroll liên tục ghép 3-star
+            "ModelBot",      # dùng checkpoint cũ
+            "BossBot",       # được buff economy + items
+            "RandBot1",
+            "RandBot2",
+            "RandBot3",
+        ]
+
+        self.game  = Game(player_names, self.champion_data, self.item_data, {})
         self.agent = self.game.players[0]
-        self._prev_hp = 100
+        self._prev_hp           = 100
         self._prev_combat_power = 0.0
 
         self.game.stage, self.game.round_num = 2, 1
         for p in self.game.players:
-            p.econ.current_stage, p.econ.current_round = 2, 1
-            p.econ.gold = 10 if "HardBot" in p.name else 4 
-        
+            p.econ.current_stage = 2
+            p.econ.current_round = 1
+            # Gold khởi đầu theo loại bot
+            if p.name == "BossBot":
+                p.econ.gold = 20       # BossBot bắt đầu giàu hơn
+            elif p.name in ("EconBot", "RerollBot", "ModelBot"):
+                p.econ.gold = 8
+            else:
+                p.econ.gold = 4
+
         self._setup_initial_units()
+
+        # Tracking cho stats in ra
+        self._episode_count    = getattr(self, '_episode_count', 0) + 1
+        self._episode_rewards  = []
+        self._episode_placements = getattr(self, '_episode_placements', [])
+        self._print_every      = 50   # in mỗi 50 game
+
         return self._get_obs_dict(), {}
 
     def _setup_initial_units(self):
+        """Đặt tướng ban đầu cho bots"""
         champ_names = list(self.champion_data.keys())
+        cost1_champs = [n for n, d in self.champion_data.items()
+                        if isinstance(d, dict) and d.get("cost", 1) == 1]
+
         for player in self.game.players[1:]:
-            name = champ_names[0] if "HardBot" in player.name else np.random.choice(champ_names)
-            c = self.game.make_champion(name)
-            if "HardBot" in player.name: c.star = 2
-            player.board.place(c, 0, 3)
+            if player.name == "BossBot":
+                # BossBot bắt đầu với 2 tướng 2-star
+                for col in [2, 4]:
+                    name = random.choice(champ_names)
+                    c    = self.game.make_champion(name)
+                    c.star = 2
+                    player.board.place(c, 0, col)
+                # Và 2 items ngẫu nhiên
+                self._give_items_to_player(player, 2)
+
+            elif player.name in ("EconBot", "RerollBot", "ModelBot"):
+                name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
+                c    = self.game.make_champion(name)
+                player.board.place(c, 0, 3)
+            else:
+                name = random.choice(champ_names)
+                c    = self.game.make_champion(name)
+                player.board.place(c, 0, 3)
+
+    def _give_items_to_player(self, player, count):
+        """Cho player một số items ngẫu nhiên"""
+        if not self.item_list:
+            return
+        for _ in range(count):
+            item_id  = random.choice(self.item_list)
+            item_obj = self.game.item_registry.get(item_id)
+            if item_obj:
+                player.add_item_to_bench(item_obj)
 
     def _apply_loot(self):
-        """Cơ chế rơi đồ ngẫu nhiên 📦"""
-        if self.item_list and random.random() < 0.3: # 30% cơ hội nhận đồ mỗi round
-            item_name = random.choice(self.item_list)
-            # Giả định item_registry đã được khởi tạo trong game.py
-            new_item = self.game.item_registry.get(item_name)
-            if new_item:
-                self.agent.add_to_item_bench(new_item)
+        """Rơi đồ ngẫu nhiên mỗi round"""
+        if not self.item_list:
+            return
+        # Agent: 30% chance nhận 1 item
+        if random.random() < 0.3:
+            item_obj = self.game.item_registry.get(random.choice(self.item_list))
+            if item_obj:
+                self.agent.add_item_to_bench(item_obj)
+
+        # BossBot: nhận item mỗi 3 rounds
+        boss = next((p for p in self.game.players if p.name == "BossBot"), None)
+        if boss and boss.is_alive and self.game.round_count % 3 == 0:
+            self._give_items_to_player(boss, 1)
 
     def _is_valid_action(self, action):
         """Hàm kiểm tra nhanh cho step (đã có mask nên hàm này bảo vệ thêm)"""
@@ -248,93 +287,313 @@ class TFTEnv(gym.Env):
             
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
-                standings = self.game.get_standings()
-                rank = next(i for i, p in enumerate(standings) if p is self.agent)
-                reward += {0:50, 1:30, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+                standings  = self.game.get_standings()
+                rank       = next(i for i, p in enumerate(standings) if p is self.agent)
+                reward    += {0:50, 1:30, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+
+                # Lưu placement
+                self._episode_placements.append(rank + 1)   # rank 0 = top1
+
+                # In stats mỗi _print_every game
+                if self._episode_count % self._print_every == 0:
+                    self._print_stats()
             else:
                 self.agent.econ.shop.roll(self.agent.level)
 
+        # Track reward
+        self._episode_rewards.append(float(reward))
+
         return self._get_obs_dict(), float(reward), terminated, truncated, {}
 
+    def _print_stats(self):
+        """In thống kê sau mỗi _print_every episodes"""
+        n = self._print_every
+        recent = self._episode_placements[-n:]
+        if not recent:
+            return
+
+        top1  = recent.count(1)
+        top4  = sum(1 for p in recent if p <= 4)
+        avg_p = sum(recent) / len(recent)
+
+        # Đếm placement phân bố
+        dist = {i: recent.count(i) for i in range(1, 9)}
+        dist_str = " | ".join(f"Top{k}:{v}" for k, v in dist.items() if v > 0)
+
+        sep = "=" * 55
+        print(f"\n{sep}")
+        print(f"[Stats] Sau {self._episode_count} games (last {n}):")
+        print(f"  Top1  : {top1}/{n} ({top1/n*100:.1f}%)")
+        print(f"  Top4  : {top4}/{n} ({top4/n*100:.1f}%)")
+        print(f"  Avg placement: {avg_p:.2f}")
+        print(f"  Phan bo: {dist_str}")
+        print(f"{sep}\n")
+
     def _run_bot_logic(self):
+        """Chạy logic cho tất cả bots trừ agent"""
         for player in self.game.players[1:]:
-            if not player.is_alive: continue
-            econ = player.econ
-            if "HardBot" in player.name and econ.gold >= 10 and econ.level < 9: econ.buy_xp()
-            owned_names = [c.name for c in player.get_all_champions()]
-            for i, slot_name in enumerate(econ.shop.slots):
-                if slot_name:
-                    cost = get_cost(self.champion_data, slot_name)
-                    if econ.gold >= cost and ("HardBot" in player.name or slot_name in owned_names):
-                        name = econ.buy_champion(i, cost)
-                        if name:
-                            champ = self.game.make_champion(name)
-                            if not player.add_to_board_auto(champ): player.add_to_bench(champ)
+            if not player.is_alive:
+                continue
+            if player.name == "EconBot":
+                self._run_econ_bot(player)
+            elif player.name == "RerollBot":
+                self._run_reroll_bot(player)
+            elif player.name == "ModelBot":
+                self._run_model_bot(player)
+            elif player.name == "BossBot":
+                self._run_boss_bot(player)
+            else:
+                self._run_random_bot(player)
+
+    def _buy_and_place(self, player, slot_idx, name):
+        """Helper: mua tướng và đặt lên board/bench"""
+        cost  = get_cost(self.champion_data, name)
+        bought = player.econ.buy_champion(slot_idx, cost)
+        if bought:
+            champ = self.game.make_champion(name)
+            if not player.add_to_board_auto(champ):
+                player.add_to_bench(champ)
+
+    def _run_econ_bot(self, player):
+        """EconBot: giữ gold để lấy interest, level up đúng lúc, mua tướng đang có"""
+        econ        = player.econ
+        owned_names = {c.name for c in player.get_all_champions()}
+
+        # Level up khi đủ điều kiện tốt
+        if econ.gold >= 30 and econ.level < 8:
+            econ.buy_xp()
+
+        # Chỉ mua tướng đang sở hữu (ghép 3-star)
+        for i, name in enumerate(econ.shop.slots):
+            if name and name in owned_names:
+                cost = get_cost(self.champion_data, name)
+                if econ.gold - cost >= 10:   # giữ ít nhất 10 gold
+                    self._buy_and_place(player, i, name)
+
+    def _run_reroll_bot(self, player):
+        """RerollBot: reroll liên tục để ghép 3-star, không quan tâm giữ gold"""
+        econ        = player.econ
+        owned_names = {c.name for c in player.get_all_champions()}
+
+        # Mua tướng đang sở hữu trước
+        for i, name in enumerate(econ.shop.slots):
+            if name and name in owned_names and econ.gold >= get_cost(self.champion_data, name):
+                self._buy_and_place(player, i, name)
+
+        # Reroll nếu còn gold
+        if econ.gold >= 6:
+            econ.reroll()
+            # Mua lại sau reroll
+            owned_names = {c.name for c in player.get_all_champions()}
+            for i, name in enumerate(econ.shop.slots):
+                if name and name in owned_names and econ.gold >= get_cost(self.champion_data, name):
+                    self._buy_and_place(player, i, name)
+
+    def _run_model_bot(self, player):
+        """ModelBot: dùng checkpoint để quyết định — chỉ planning phase"""
+        if self._model_bot is None:
+            self._run_econ_bot(player)   # fallback nếu chưa có model
+            return
+
+        # Build obs cho player này
+        obs_dict = self._get_obs_for_player(player)
+
+        # Predict action
+        action, _ = self._model_bot.predict(obs_dict, deterministic=False)
+        action     = int(action)
+
+        # Validate mask trước khi execute
+        mask = obs_dict["action_mask"]
+        if mask[action] == 0:
+            return   # Invalid action → bỏ qua
+
+        # Execute action cho player (không phải agent)
+        self._apply_action_for_player(player, action)
+
+    def _run_boss_bot(self, player):
+        """BossBot: economy tốt nhất + mua tướng mạnh + equip items"""
+        econ        = player.econ
+        owned_names = {c.name for c in player.get_all_champions()}
+
+        # Luôn level up nếu đủ gold
+        if econ.gold >= 8 and econ.level < 9:
+            econ.buy_xp()
+
+        # Reroll miễn phí mỗi round
+        econ.shop.roll(econ.level)
+
+        # Mua tất cả tướng cost cao hoặc đang sở hữu
+        for i, name in enumerate(econ.shop.slots):
+            if not name:
+                continue
+            cost = get_cost(self.champion_data, name)
+            if econ.gold >= cost and (cost >= 3 or name in owned_names):
+                self._buy_and_place(player, i, name)
+
+        # Equip items lên tướng trên board
+        board_champs = player.get_board_champions()
+        for champ in board_champs:
+            if len(champ.items) < 3 and player.item_bench:
+                player.equip_item_to_champ(0, champ)
+
+    def _run_random_bot(self, player):
+        """RandomBot: mua tướng ngẫu nhiên nếu đủ gold"""
+        econ = player.econ
+        for i, name in enumerate(econ.shop.slots):
+            if name:
+                cost = get_cost(self.champion_data, name)
+                if econ.gold >= cost and random.random() < 0.4:
+                    self._buy_and_place(player, i, name)
+
+    def _apply_action_for_player(self, player, action):
+        """Execute action cho player bất kỳ (dùng cho ModelBot)"""
+        econ = player.econ
+
+        if action in ACTION_BUY_SHOP:
+            name = econ.shop.slots[action]
+            if name:
+                cost = get_cost(self.champion_data, name)
+                if econ.buy_champion(action, cost):
+                    champ = self.game.make_champion(name)
+                    if not player.add_to_bench(champ):
+                        econ.gold += cost
+                        self.game.pool.return_champ(name)
+
+        elif action == ACTION_REROLL:
+            econ.reroll()
+
+        elif action == ACTION_BUY_XP:
+            econ.buy_xp()
+
+        elif action in ACTION_SELL_BENCH:
+            idx   = action - 7
+            champ = player.bench[idx]
+            if champ:
+                player.sell(champ)
+
+        elif ACTION_PLACE_BASE <= action < ACTION_PASS:
+            rel   = action - ACTION_PLACE_BASE
+            b_idx = rel // N_BOARD_SLOTS
+            bd_idx= rel % N_BOARD_SLOTS
+            row, col = BOARD_POSITIONS[bd_idx]
+            player.place_on_board(b_idx, row, col)
+
+        elif ACTION_EQUIP_ITEM_BASE <= action < TOTAL_ACTIONS:
+            rel       = action - ACTION_EQUIP_ITEM_BASE
+            item_idx  = rel // N_BOARD_SLOTS
+            board_idx = rel % N_BOARD_SLOTS
+            r, c      = BOARD_POSITIONS[board_idx]
+            target    = player.board.get(r, c)
+            if target:
+                player.equip_item_to_champ(item_idx, target)
 
     def _get_obs_dict(self):
-        """Trả về dict chứa cả Mask và Obs thực tế"""
+        """Trả về dict obs cho agent — dùng cho training"""
         return {
             "action_mask": self.get_action_mask(),
-            "observation": self._get_obs()
+            "observation": self._get_obs(self.agent)
         }
 
-    def _get_obs(self):
-        obs = np.zeros(OBS_SIZE, dtype=np.float32)
-        econ = self.agent.econ
-        idx = 0
-        
+    def _get_obs_for_player(self, player):
+        """Build obs dict cho bất kỳ player nào — dùng cho ModelBot"""
+        mask = self._get_action_mask_for(player)
+        obs  = self._get_obs(player)
+        return {"action_mask": mask, "observation": obs}
+
+    def _get_action_mask_for(self, player):
+        """Build action mask cho player bất kỳ (không chỉ agent)"""
+        mask = np.zeros(TOTAL_ACTIONS, dtype=np.int8)
+        econ = player.econ
+
+        for i in range(N_SHOP_SLOTS):
+            name = econ.shop.slots[i]
+            if name and econ.gold >= get_cost(self.champion_data, name) and None in player.bench:
+                mask[i] = 1
+
+        if econ.gold >= 2: mask[ACTION_REROLL] = 1
+        if econ.gold >= 4 and econ.level < 10: mask[ACTION_BUY_XP] = 1
+
+        for i in range(N_BENCH_SLOTS):
+            if player.bench[i] is not None:
+                mask[7 + i] = 1
+
+        for b_idx in range(N_BENCH_SLOTS):
+            if player.bench[b_idx] is not None:
+                start_idx = ACTION_PLACE_BASE + (b_idx * N_BOARD_SLOTS)
+                mask[start_idx : start_idx + N_BOARD_SLOTS] = 1
+
+        for i_idx in range(min(len(player.item_bench), N_ITEM_SLOTS)):
+            for b_idx in range(N_BOARD_SLOTS):
+                r, c = BOARD_POSITIONS[b_idx]
+                champ = player.board.get(r, c)
+                if champ and len(champ.items) < 3:
+                    action_id = ACTION_EQUIP_ITEM_BASE + (i_idx * N_BOARD_SLOTS) + b_idx
+                    mask[action_id] = 1
+
+        mask[ACTION_PASS] = 1
+        return mask
+
+    def _get_obs(self, player):
+        """Build observation vector cho player bất kỳ"""
+        obs  = np.zeros(OBS_SIZE, dtype=np.float32)
+        econ = player.econ
+        idx  = 0
+
         # Stats & Econ (6)
-        obs[idx:idx+6] = [econ.gold/50, self.agent.hp/100, econ.level/10, econ.xp/68, econ.win_streak/6, econ.loss_streak/6]
+        obs[idx:idx+6] = [
+            econ.gold/50, player.hp/100, econ.level/10,
+            econ.xp/68, econ.win_streak/6, econ.loss_streak/6
+        ]
         idx += 6
-        
+
         # Shop (10)
         for slot in econ.shop.slots:
             if slot:
-                obs[idx] = self.champ_id_map.get(slot, 0)/self.n_champions
-                obs[idx+1] = get_cost(self.champion_data, slot)/5.0
+                obs[idx]   = self.champ_id_map.get(slot, 0) / self.n_champions
+                obs[idx+1] = get_cost(self.champion_data, slot) / 5.0
             idx += 2
-            
+
         # Bench (18)
-        for champ in self.agent.bench:
+        for champ in player.bench:
             if champ:
-                obs[idx] = self.champ_id_map.get(champ.name, 0)/self.n_champions
-                obs[idx+1] = champ.star/3.0
+                obs[idx]   = self.champ_id_map.get(champ.name, 0) / self.n_champions
+                obs[idx+1] = champ.star / 3.0
             idx += 2
-            
+
         # Board (168)
         role_map = {"tank": 0.2, "fighter": 0.4, "marksman": 0.6, "caster": 0.8, "assassin": 1.0}
         for row, col in BOARD_POSITIONS:
-            champ = self.agent.board.get(row, col)
+            champ = player.board.get(row, col)
             if champ:
-                obs[idx] = self.champ_id_map.get(champ.name, 0)/self.n_champions
-                obs[idx+1] = champ.star/3.0
+                obs[idx]   = self.champ_id_map.get(champ.name, 0) / self.n_champions
+                obs[idx+1] = champ.star / 3.0
                 obs[idx+2] = role_map.get(self._get_role(champ.name), 0.1)
                 for i in range(3):
                     if i < len(champ.items):
-                        obs[idx+3+i] = self.item_id_map.get(champ.items[i].item_id, 0)/(len(self.item_list) + 1)
+                        obs[idx+3+i] = self.item_id_map.get(champ.items[i].item_id, 0) / (len(self.item_list) + 1)
             idx += 6
-            
+
         # Item Bench (10)
         for i in range(N_ITEM_SLOTS):
-            if i < len(self.agent.item_bench):
-                obs[idx] = self.item_id_map.get(self.agent.item_bench[i].item_id, 0)/(len(self.item_list) + 1)
+            if i < len(player.item_bench):
+                obs[idx] = self.item_id_map.get(player.item_bench[i].item_id, 0) / (len(self.item_list) + 1)
             idx += 1
-            
+
         # Opponents (7)
-        opponents = [p for p in self.game.players if p is not self.agent]
+        opponents = [p for p in self.game.players if p is not player]
         for opp in opponents[:N_OPPONENTS]:
-            obs[idx] = opp.hp/100.0
+            obs[idx] = opp.hp / 100.0
             idx += 1
-            
-        # Traits
-        board_champs = self.agent.get_board_champions()
+
+        # Traits (22)
+        board_champs = player.get_board_champions()
         trait_counts = self._trait_mgr.count_traits(board_champs)
         for t_name in self.trait_id_list:
             if idx < OBS_SIZE:
                 trait = self._trait_mgr.traits.get(t_name)
                 if trait:
                     level, _ = trait.get_active_level(trait_counts.get(t_name, 0))
-                    obs[idx] = level/3.0
+                    obs[idx] = level / 3.0
                 idx += 1
-                
+
         return obs
