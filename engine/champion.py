@@ -87,10 +87,13 @@ class Champion:
     # CALCULATIONS & DAMAGE 🔢
     # ==================
 
-    def calc_crit(self):
-        """Tính toán xem đòn đánh có chí mạng hay không 🎯"""
+    def calc_crit(self, base_damage=None):
+        """Tính toán crit. Nếu truyền base_damage thì trả về (damage_after_crit, is_crit).
+        Nếu không truyền thì trả về (is_crit, multiplier) — tương thích ngược."""
         is_crit = random.random() < self.crit_chance
         multiplier = self.crit_damage if is_crit else 1.0
+        if base_damage is not None:
+            return base_damage * multiplier, is_crit
         return is_crit, multiplier
 
     def take_damage(self, amount, damage_type="physical", attacker=None, damage_amp_bonus=0.0):
@@ -127,6 +130,7 @@ class Champion:
         
         # Nhận mana khi bị tấn công
         self.gain_mana(10)
+        return actual_damage
 
     def deal_damage_to(self, target, damage_amount, damage_type="physical"):
         """Gây sát thương lên mục tiêu khác ⚔️"""
@@ -197,6 +201,18 @@ class Champion:
                     setattr(self, stat, getattr(self, stat) + bonus)
             return True
         return False
+
+    def reset_for_combat(self):
+        """Reset trạng thái về đầu trận — gọi trước mỗi combat"""
+        self.hp              = self.max_hp
+        self.mana            = self.mana_start
+        self.is_alive        = True
+        self.shields         = []
+        self.buffs           = []
+        self.attack_timer    = 0.0
+        self.mana_lock_timer = 0.0
+        self.current_target  = None
+        self.last_damage_time = -999.0
 
     def __repr__(self):
         return f"<{self.name} {self.star}★ | HP: {int(self.hp)}/{self.max_hp} | MP: {self.mana}/{self.max_mana}>"

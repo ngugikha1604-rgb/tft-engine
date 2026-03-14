@@ -1,27 +1,47 @@
 # transfer_learning.py
 #
-# Chuyển weights từ model cũ (OBS nhỏ) sang model mới (OBS lớn hơn).
-# Các neuron mới được khởi tạo random, phần cũ giữ nguyên.
+# Dùng MaskablePPO (sb3-contrib) cho env có action masking.
+# Vì policy thay đổi hoàn toàn (MlpPolicy → MultiInputPolicy),
+# không thể transfer từ model cũ — phải train lại từ đầu.
 #
 # Cách dùng trong Colab:
 #
-#   from transfer_learning import transfer_model
+#   from transfer_learning import make_new_model, transfer_model
 #
-#   model_new = transfer_model(
-#       old_path  = '/content/drive/MyDrive/tft_models/tft_ppo_1300000_steps.zip',
-#       new_env   = vec_env,           # env mới đã tạo
-#       old_obs   = 97,                # OBS_SIZE cũ
-#       new_obs   = 119,               # OBS_SIZE mới
-#       device    = 'cpu',
+#   # Train mới hoàn toàn
+#   model = make_new_model(vec_env, device='cpu')
+#
+#   # Hoặc transfer từ checkpoint MaskablePPO cũ (cùng policy)
+#   model = transfer_model(
+#       old_path = '/content/drive/MyDrive/tft_models/tft_ppo_v3_500000_steps.zip',
+#       new_env  = vec_env,
+#       old_obs  = 260,
+#       new_obs  = 260,   # nếu OBS không đổi thì copy 100%
+#       device   = 'cpu',
 #   )
-#
-#   # Train tiếp từ weights cũ
-#   model_new.learn(total_timesteps=500_000, ...)
 
-import numpy as np
 import torch
-from stable_baselines3 import PPO
+from sb3_contrib import MaskablePPO
 from stable_baselines3.common.vec_env import VecEnv
+
+
+def make_new_model(env, device='cpu', verbose=1):
+    """
+    Tạo MaskablePPO mới từ đầu.
+    Dùng khi lần đầu train hoặc khi policy thay đổi.
+    """
+    model = MaskablePPO(
+        'MultiInputPolicy',
+        env,
+        n_epochs    = 15,
+        ent_coef    = 0.02,
+        verbose     = verbose,
+        device      = device,
+        policy_kwargs = dict(net_arch=[256, 256]),
+    )
+    if verbose:
+        print("[Model] Tạo MaskablePPO mới với MultiInputPolicy")
+    return model
 
 
 def transfer_model(
@@ -31,65 +51,40 @@ def transfer_model(
     new_obs:  int,
     device:   str = 'cpu',
     verbose:  int = 1,
-) -> PPO:
+) -> MaskablePPO:
     """
-    Load model cũ, tạo model mới với OBS lớn hơn,
-    copy weights layer-by-layer. Trả về model mới sẵn sàng train.
+    Transfer weights từ checkpoint MaskablePPO cũ sang model mới.
+    Chỉ dùng được khi cả 2 đều dùng MaskablePPO + MultiInputPolicy.
 
-    Parameters
-    ----------
-    old_path : đường dẫn checkpoint cũ (.zip)
-    new_env  : VecEnv đã khởi tạo với obs mới
-    old_obs  : OBS_SIZE của model cũ
-    new_obs  : OBS_SIZE của model mới
-    device   : 'cpu' hoặc 'cuda'
-    verbose  : 0 = im lặng, 1 = in thông tin
+    Nếu old_obs == new_obs thì copy 100% weights.
+    Nếu khác thì copy phần overlap, phần mới random init.
     """
-
     if verbose:
-        print(f"[Transfer] Load model cũ từ: {old_path}")
+        print(f"[Transfer] Load checkpoint: {old_path}")
         print(f"[Transfer] OBS: {old_obs} → {new_obs}")
 
-    # ── 1. Load model cũ ────────────────────────────────────────────
-    model_old = PPO.load(old_path, device=device)
+    # Load model cũ (không cần env)
+    model_old = MaskablePPO.load(old_path, device=device)
     old_state = model_old.policy.state_dict()
 
     if verbose:
-        print(f"[Transfer] Layers trong model cũ:")
+        print("[Transfer] Layers model cũ:")
         for k, v in old_state.items():
-            print(f"  {k}: {v.shape}")
+            print(f"  {k}: {tuple(v.shape)}")
 
-    # ── 2. Tạo model mới ────────────────────────────────────────────
-    if verbose:
-        print(f"\n[Transfer] Tạo model mới...")
-
-    model_new = PPO(
-        'MultiInputPolicy',
-        new_env,
-        n_epochs  = model_old.n_epochs,
-        ent_coef  = model_old.ent_coef,
-        verbose   = 0,
-        device    = device,
-    )
+    # Tạo model mới
+    model_new = make_new_model(new_env, device=device, verbose=0)
     new_state = model_new.policy.state_dict()
 
     if verbose:
-        print(f"[Transfer] Layers trong model mới:")
-        for k, v in new_state.items():
-            print(f"  {k}: {v.shape}")
+        print("\n[Transfer] Bắt đầu copy weights...")
 
-    # ── 3. Copy weights layer-by-layer ──────────────────────────────
-    if verbose:
-        print(f"\n[Transfer] Bắt đầu copy weights...")
-
-    transferred = 0
-    skipped     = 0
-    partial     = 0
+    transferred = skipped = partial = 0
 
     for key in new_state.keys():
         if key not in old_state:
             if verbose:
-                print(f"  [SKIP]     {key} — không có trong model cũ")
+                print(f"  [SKIP]    {key} — không có trong model cũ")
             skipped += 1
             continue
 
@@ -97,53 +92,43 @@ def transfer_model(
         new_w = new_state[key]
 
         if old_w.shape == new_w.shape:
-            # Shape giống hệt → copy toàn bộ
             new_state[key] = old_w.clone()
             if verbose:
-                print(f"  [COPY]     {key}: {old_w.shape}")
+                print(f"  [COPY]    {key}: {tuple(old_w.shape)}")
             transferred += 1
-
         else:
-            # Shape khác → copy phần overlap, phần mới giữ random init
             new_w_copy = new_state[key].clone()
-
             try:
                 if len(old_w.shape) == 1:
-                    # Bias vector: [N] → [M] với M > N
-                    min_dim = min(old_w.shape[0], new_w.shape[0])
-                    new_w_copy[:min_dim] = old_w[:min_dim]
-
+                    m = min(old_w.shape[0], new_w.shape[0])
+                    new_w_copy[:m] = old_w[:m]
                 elif len(old_w.shape) == 2:
-                    # Weight matrix: [out, in]
-                    min_out = min(old_w.shape[0], new_w.shape[0])
-                    min_in  = min(old_w.shape[1], new_w.shape[1])
-                    new_w_copy[:min_out, :min_in] = old_w[:min_out, :min_in]
-
+                    m_out = min(old_w.shape[0], new_w.shape[0])
+                    m_in  = min(old_w.shape[1], new_w.shape[1])
+                    new_w_copy[:m_out, :m_in] = old_w[:m_out, :m_in]
                 new_state[key] = new_w_copy
                 if verbose:
-                    print(f"  [PARTIAL]  {key}: {old_w.shape} → {new_w.shape}")
+                    print(f"  [PARTIAL] {key}: {tuple(old_w.shape)} → {tuple(new_w.shape)}")
                 partial += 1
-
             except Exception as e:
                 if verbose:
-                    print(f"  [ERROR]    {key}: {e}")
+                    print(f"  [ERROR]   {key}: {e}")
                 skipped += 1
 
-    # ── 4. Load state dict vào model mới ────────────────────────────
     model_new.policy.load_state_dict(new_state)
 
     if verbose:
         print(f"\n[Transfer] Kết quả:")
-        print(f"  ✅ Copy đầy đủ : {transferred} layers")
+        print(f"  ✅ Copy đầy đủ  : {transferred} layers")
         print(f"  ⚠️  Copy một phần: {partial} layers")
-        print(f"  ❌ Bỏ qua      : {skipped} layers")
-        print(f"\n[Transfer] Xong! Model mới sẵn sàng train.")
+        print(f"  ❌ Bỏ qua       : {skipped} layers")
+        print(f"[Transfer] Xong! Model sẵn sàng train.")
 
     return model_new
 
 
-def save_transfer_checkpoint(model, save_dir, name='tft_ppo_transferred'):
-    """Lưu model sau transfer để dùng lại"""
+def save_transfer_checkpoint(model, save_dir, name='tft_maskable_transferred'):
+    """Lưu model sau transfer"""
     path = f"{save_dir}/{name}"
     model.save(path)
     print(f"[Transfer] Đã lưu: {path}.zip")
