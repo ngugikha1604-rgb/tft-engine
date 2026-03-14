@@ -525,10 +525,15 @@ class TFTEnv(gym.Env):
             if player.bench[i] is not None:
                 mask[7 + i] = 1
 
+        board_count = len(player.get_board_champions())
+        can_place   = board_count < player.econ.board_size
         for b_idx in range(N_BENCH_SLOTS):
-            if player.bench[b_idx] is not None:
-                start_idx = ACTION_PLACE_BASE + (b_idx * N_BOARD_SLOTS)
-                mask[start_idx : start_idx + N_BOARD_SLOTS] = 1
+            if player.bench[b_idx] is not None and can_place:
+                for bd_idx in range(N_BOARD_SLOTS):
+                    r, c = BOARD_POSITIONS[bd_idx]
+                    if player.board.is_empty(r, c):
+                        action_id = ACTION_PLACE_BASE + (b_idx * N_BOARD_SLOTS) + bd_idx
+                        mask[action_id] = 1
 
         for i_idx in range(min(len(player.item_bench), N_ITEM_SLOTS)):
             for b_idx in range(N_BOARD_SLOTS):
