@@ -238,7 +238,7 @@ class TFTEnv(gym.Env):
             if champ:
                 # Trả lại đồ về bench khi bán tướng ♻️
                 for item in champ.items[:]:
-                    self.agent.add_to_item_bench(item)
+                    self.agent.add_item_to_bench(item)
                     item.unequip(champ)
                 self.agent.sell(champ)
         elif ACTION_PLACE_BASE <= action < ACTION_PASS:
