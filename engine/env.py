@@ -138,9 +138,9 @@ class TFTEnv(gym.Env):
             "RerollBot",     # reroll liên tục ghép 3-star
             "ModelBot",      # dùng checkpoint cũ
             "BossBot",       # được buff economy + items
-            "RandBot1",
-            "RandBot2",
-            "RandBot3",
+            "ModelBot2",     # model bot thứ 2
+            "ModelBot3",     # model bot thứ 3
+            "RandBot3",      # giữ 1 random bot
         ]
 
         self.game  = Game(player_names, self.champion_data, self.item_data, {})
@@ -155,7 +155,7 @@ class TFTEnv(gym.Env):
             # Gold khởi đầu theo loại bot
             if p.name == "BossBot":
                 p.econ.gold = 20       # BossBot bắt đầu giàu hơn
-            elif p.name in ("EconBot", "RerollBot", "ModelBot"):
+            elif p.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3"):
                 p.econ.gold = 8
             else:
                 p.econ.gold = 4
@@ -190,7 +190,7 @@ class TFTEnv(gym.Env):
                 # Và 2 items ngẫu nhiên
                 self._give_items_to_player(player, 2)
 
-            elif player.name in ("EconBot", "RerollBot", "ModelBot"):
+            elif player.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3"):
                 name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
                 c    = self.game.make_champion(name)
                 player.board.place(c, 0, 3)
@@ -238,9 +238,25 @@ class TFTEnv(gym.Env):
             cost = get_cost(self.champion_data, name)
             champ = self.game.make_champion(name)
             if econ.buy_champion(slot, cost):
-                if not self.agent.add_to_bench(champ):
+                # Đếm số tướng cùng tên trước khi thêm
+                before_count = sum(
+                    1 for c in self.agent.get_all_champions() if c.name == name
+                )
+                added = self.agent.add_to_bench(champ)
+                if not added:
                     econ.gold += cost
                     self.game.pool.return_champ(name)
+                else:
+                    # Kiểm tra có ghép được 2-star hoặc 3-star không
+                    after_count = sum(
+                        1 for c in self.agent.get_all_champions() if c.name == name
+                    )
+                    # Nếu tổng đạt 3 → ghép thành 2-star
+                    if before_count == 2 and after_count >= 3:
+                        reward += 3.0   # +3 khi ghép được 2-star
+                    # Nếu tổng đạt 9 → ghép thành 3-star (3 con 2-star)
+                    elif before_count == 8 and after_count >= 9:
+                        reward += 10.0  # +10 khi ghép được 3-star
         elif action == ACTION_REROLL: econ.reroll()
         elif action == ACTION_BUY_XP: econ.buy_xp()
         elif action in ACTION_SELL_BENCH:
@@ -305,7 +321,7 @@ class TFTEnv(gym.Env):
                     1 for p in self.game.players
                     if p is not self.agent and p.hp > agent_hp
                 )
-                reward += {0:50, 1:30, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+                reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
                 self._episode_placements.append(rank + 1)   # rank 0 = top1
@@ -354,7 +370,7 @@ class TFTEnv(gym.Env):
                 self._run_econ_bot(player)
             elif player.name == "RerollBot":
                 self._run_reroll_bot(player)
-            elif player.name == "ModelBot":
+            elif player.name in ("ModelBot", "ModelBot2", "ModelBot3"):
                 self._run_model_bot(player)
             elif player.name == "BossBot":
                 self._run_boss_bot(player)
