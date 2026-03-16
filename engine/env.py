@@ -68,19 +68,41 @@ class TFTEnv(gym.Env):
             "observation": spaces.Box(low=0.0, high=1.0, shape=(OBS_SIZE,), dtype=np.float32)
         })
 
-        # ModelBot — load 1 lần duy nhất khi khởi tạo
-        self._model_bot = None
+        # ModelBot — lưu path để reload mỗi episode
+        self._model_bot      = None
+        self._model_bot_path = model_bot_path   # path hoặc dir chứa checkpoints
+        self._model_bot_reload_every = 10       # reload mỗi 10 episodes
         if model_bot_path and _SB3_CONTRIB:
-            try:
-                self._model_bot = MaskablePPO.load(model_bot_path, device='cpu')
-                print(f"[ModelBot] Loaded: {model_bot_path}")
-            except Exception as e:
-                print(f"[ModelBot] Load failed: {e}")
+            self._reload_model_bot(model_bot_path)
 
         self.game   = None
         self.agent  = None
         self._prev_hp             = 100
         self._prev_combat_power   = 0.0
+
+    def _reload_model_bot(self, path=None):
+        """Reload ModelBot từ checkpoint mới nhất"""
+        if not _SB3_CONTRIB:
+            return
+        try:
+            load_path = path or self._model_bot_path
+            if not load_path:
+                return
+            # Nếu là thư mục → tìm checkpoint mới nhất
+            import glob as _glob
+            import os
+            if os.path.isdir(load_path):
+                ckpts = sorted(
+                    _glob.glob(os.path.join(load_path, '*.zip')),
+                    key=lambda x: int(x.split('_steps')[0].split('_')[-1])
+                    if '_steps' in x else 0
+                )
+                if not ckpts:
+                    return
+                load_path = ckpts[-1]
+            self._model_bot = MaskablePPO.load(load_path, device='cpu')
+        except Exception:
+            pass   # Giữ model cũ nếu load fail
 
     # ==================
     # ACTION MASKING LOGIC 🎭
@@ -140,7 +162,7 @@ class TFTEnv(gym.Env):
             "BossBot",       # được buff economy + items
             "ModelBot2",     # model bot thứ 2
             "ModelBot3",     # model bot thứ 3
-            "RandBot3",      # giữ 1 random bot
+            "ModelBot4",     # model bot thứ 4
         ]
 
         self.game  = Game(player_names, self.champion_data, self.item_data, {})
@@ -155,7 +177,7 @@ class TFTEnv(gym.Env):
             # Gold khởi đầu theo loại bot
             if p.name == "BossBot":
                 p.econ.gold = 20       # BossBot bắt đầu giàu hơn
-            elif p.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3"):
+            elif p.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
                 p.econ.gold = 8
             else:
                 p.econ.gold = 4
@@ -165,8 +187,13 @@ class TFTEnv(gym.Env):
         # Roll shop đầu tiên cho agent
         self.agent.econ.shop.roll(self.agent.econ.level)
 
+        # Reload ModelBot mỗi _model_bot_reload_every episodes
+        self._episode_count = getattr(self, '_episode_count', 0) + 1
+        if (self._model_bot_path and _SB3_CONTRIB and
+                self._episode_count % self._model_bot_reload_every == 0):
+            self._reload_model_bot()
+
         # Tracking cho stats in ra
-        self._episode_count    = getattr(self, '_episode_count', 0) + 1
         self._episode_rewards  = []
         self._episode_placements = getattr(self, '_episode_placements', [])
         self._print_every      = 50   # in mỗi 50 game
@@ -190,7 +217,7 @@ class TFTEnv(gym.Env):
                 # Và 2 items ngẫu nhiên
                 self._give_items_to_player(player, 2)
 
-            elif player.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3"):
+            elif player.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
                 name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
                 c    = self.game.make_champion(name)
                 player.board.place(c, 0, 3)
@@ -370,7 +397,7 @@ class TFTEnv(gym.Env):
                 self._run_econ_bot(player)
             elif player.name == "RerollBot":
                 self._run_reroll_bot(player)
-            elif player.name in ("ModelBot", "ModelBot2", "ModelBot3"):
+            elif player.name in ("ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
                 self._run_model_bot(player)
             elif player.name == "BossBot":
                 self._run_boss_bot(player)
