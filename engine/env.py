@@ -14,6 +14,7 @@ for _p in [_THIS_DIR, os.path.join(_THIS_DIR, "engine")]:
 from game import Game
 from econ import ChampionPool
 from traits import TraitManager, DEFAULT_TRAITS
+from logger import TFTLogger
 
 # MaskablePPO import cho ModelBot — optional, không crash nếu chưa cài
 try:
@@ -79,6 +80,10 @@ class TFTEnv(gym.Env):
         self.agent  = None
         self._prev_hp             = 100
         self._prev_combat_power   = 0.0
+
+        # Logger — mặc định train mode
+        # Đổi mode='replay' khi muốn ghi đầy đủ
+        self.logger = TFTLogger(log_dir='logs', mode='train')
 
     def _reload_model_bot(self, path=None):
         """Reload ModelBot từ checkpoint mới nhất"""
@@ -197,6 +202,11 @@ class TFTEnv(gym.Env):
         self._episode_rewards  = []
         self._episode_placements = getattr(self, '_episode_placements', [])
         self._print_every      = 50   # in mỗi 50 game
+        self._total_reward     = 0.0
+        self._rounds_survived  = 0
+
+        # Logger
+        self.logger.on_episode_start(self._episode_count)
 
         return self._get_obs_dict(), {}
 
@@ -263,26 +273,27 @@ class TFTEnv(gym.Env):
             slot = action
             name = econ.shop.slots[slot]
             cost = get_cost(self.champion_data, name)
-            # Đếm TRƯỚC khi mua
-            before_count = sum(
-                1 for c in self.agent.get_all_champions() if c.name == name
-            )
             champ = self.game.make_champion(name)
             if econ.buy_champion(slot, cost):
+                # Đếm số tướng cùng tên trước khi thêm
+                before_count = sum(
+                    1 for c in self.agent.get_all_champions() if c.name == name
+                )
                 added = self.agent.add_to_bench(champ)
                 if not added:
                     econ.gold += cost
                     self.game.pool.return_champ(name)
                 else:
+                    # Kiểm tra có ghép được 2-star hoặc 3-star không
                     after_count = sum(
                         1 for c in self.agent.get_all_champions() if c.name == name
                     )
-                    # Ghép được 2-star (3 con 1-star)
+                    # Nếu tổng đạt 3 → ghép thành 2-star
                     if before_count == 2 and after_count >= 3:
-                        reward += 3.0
-                    # Ghép được 3-star (3 con 2-star = 9 con 1-star)
+                        reward += 3.0   # +3 khi ghép được 2-star
+                    # Nếu tổng đạt 9 → ghép thành 3-star (3 con 2-star)
                     elif before_count == 8 and after_count >= 9:
-                        reward += 10.0
+                        reward += 10.0  # +10 khi ghép được 3-star
         elif action == ACTION_REROLL: econ.reroll()
         elif action == ACTION_BUY_XP: econ.buy_xp()
         elif action in ACTION_SELL_BENCH:
@@ -330,9 +341,26 @@ class TFTEnv(gym.Env):
             self._run_bot_logic()
             self._apply_loot() # Rơi đồ 📦
             self.game.simulate_round(verbose=False)
-            
+            self._rounds_survived += 1
+
             hp_delta = self.agent.hp - self._prev_hp
             self._prev_hp = self.agent.hp
+
+            # Logger round end (replay mode)
+            if self.logger.mode == 'replay':
+                board_names = [c.name for c in self.agent.get_board_champions()]
+                standing    = sum(
+                    1 for p in self.game.players
+                    if p is not self.agent and p.hp > self.agent.hp
+                ) + 1
+                self.logger.on_round_end(
+                    stage       = self.game.stage,
+                    round_num   = self.game.round_num,
+                    board_champs= board_names,
+                    gold        = self.agent.econ.gold,
+                    hp          = self.agent.hp,
+                    placement   = standing,
+                )
             
             if hp_delta < 0:
                 reward += hp_delta * (0.3 * self.game.stage)
@@ -352,6 +380,14 @@ class TFTEnv(gym.Env):
                 # Lưu placement
                 self._episode_placements.append(rank + 1)   # rank 0 = top1
 
+                # Logger episode end
+                self.logger.on_episode_end(
+                    placement      = rank + 1,
+                    total_reward   = self._total_reward,
+                    rounds_survived= self._rounds_survived,
+                    final_hp       = self.agent.hp,
+                )
+
                 # In stats mỗi _print_every game
                 if self._episode_count % self._print_every == 0:
                     self._print_stats()
@@ -360,6 +396,7 @@ class TFTEnv(gym.Env):
 
         # Track reward
         self._episode_rewards.append(float(reward))
+        self._total_reward += float(reward)
 
         return self._get_obs_dict(), float(reward), terminated, truncated, {}
 
@@ -392,11 +429,6 @@ class TFTEnv(gym.Env):
         for player in self.game.players[1:]:
             if not player.is_alive:
                 continue
-
-            # Roll shop cho tất cả bots nếu shop trống
-            if all(s is None for s in player.econ.shop.slots):
-                player.econ.shop.roll(player.econ.level)
-
             if player.name == "EconBot":
                 self._run_econ_bot(player)
             elif player.name == "RerollBot":
@@ -455,25 +487,23 @@ class TFTEnv(gym.Env):
     def _run_model_bot(self, player):
         """ModelBot: dùng checkpoint để quyết định — chỉ planning phase"""
         if self._model_bot is None:
-            self._run_econ_bot(player)
+            self._run_econ_bot(player)   # fallback nếu chưa có model
             return
 
+        # Build obs cho player này
         obs_dict = self._get_obs_for_player(player)
-        mask     = obs_dict["action_mask"]
 
-        # Thử predict tối đa 5 lần, lấy action valid đầu tiên
-        for _ in range(5):
-            action, _ = self._model_bot.predict(obs_dict, deterministic=False)
-            action = int(action)
-            if mask[action] == 1:
-                self._apply_action_for_player(player, action)
-                return
+        # Predict action
+        action, _ = self._model_bot.predict(obs_dict, deterministic=False)
+        action     = int(action)
 
-        # Fallback: chọn random từ valid actions
-        valid_actions = [i for i, m in enumerate(mask) if m == 1 and i != ACTION_PASS]
-        if valid_actions:
-            self._apply_action_for_player(player, random.choice(valid_actions))
-        # Nếu không có valid action nào thì pass (không làm gì)
+        # Validate mask trước khi execute
+        mask = obs_dict["action_mask"]
+        if mask[action] == 0:
+            return   # Invalid action → bỏ qua
+
+        # Execute action cho player (không phải agent)
+        self._apply_action_for_player(player, action)
 
     def _run_boss_bot(self, player):
         """BossBot: economy tốt nhất + mua tướng mạnh + equip items"""
