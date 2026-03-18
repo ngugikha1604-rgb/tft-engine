@@ -125,7 +125,7 @@ class TFTLogger:
                 self._train_logs = self._train_logs[-self.max_train_logs:]
 
             # Auto-save mỗi 100 games
-            if self._episode_count % 100 == 0:
+            if self._episode_count % 10 == 0:
                 self.save()
 
         elif self.mode == 'replay' and self._current_game is not None:
