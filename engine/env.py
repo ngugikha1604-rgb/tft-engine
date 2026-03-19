@@ -366,7 +366,23 @@ class TFTEnv(gym.Env):
                     elif before_count == 8 and after_count >= 9:
                         reward += 10.0  # +10 khi ghép được 3-star
         elif action == ACTION_REROLL: econ.reroll()
-        elif action == ACTION_BUY_XP: econ.buy_xp()
+        elif action == ACTION_BUY_XP:
+            before_level = econ.level
+            econ.buy_xp()
+            after_level  = econ.level
+            if after_level > before_level:
+                # Thưởng level up đúng lúc theo stage
+                stage = self.game.stage
+                if after_level == 4 and stage == 2:
+                    reward += 1.0
+                elif after_level in (5, 6) and stage == 3:
+                    reward += 1.5
+                elif after_level in (7, 8) and stage == 4:
+                    reward += 2.0
+                elif after_level == 9:
+                    reward += 10.0  # Rất khó lên
+                elif after_level == 10:
+                    reward += 20.0  # Cực khó lên
         elif action in ACTION_SELL_BENCH:
             idx = action - 7
             champ = self.agent.bench[idx]
@@ -435,17 +451,54 @@ class TFTEnv(gym.Env):
                     placement   = standing,
                 )
             
-            # Phạt giữ gold quá nhiều — tăng dần theo stage
+            stage        = self.game.stage
+            board_champs = self.agent.get_board_champions()
+            board_size   = len(board_champs)
+            board_cap    = self.agent.econ.board_size  # số slot tối đa theo level
+            bench_filled = sum(1 for c in self.agent.bench if c is not None)
+
+            # ── A. Phạt giữ gold quá nhiều ───────────────────
             gold_now = self.agent.econ.gold
-            stage    = self.game.stage
             if stage <= 3:
-                pass                                        # Early game: không phạt
+                pass
             elif stage == 4:
-                if gold_now > 70:                           # Mid game: phạt nhẹ
-                    reward -= (gold_now - 70) * 0.002
-            else:                                           # Late game (stage 5+): phạt nặng
+                if gold_now > 70:
+                    reward -= (gold_now - 70) * 0.008
+            elif stage == 5:
                 if gold_now > 60:
-                    reward -= (gold_now - 60) * 0.005
+                    reward -= (gold_now - 60) * 0.015
+            else:
+                if gold_now > 50:
+                    reward -= (gold_now - 50) * 0.025
+
+            # ── B. Phạt board trống/thiếu ─────────────────────
+            if board_size == 0:
+                if stage >= 4:
+                    reward -= 5.0   # Phạt rất nặng stage 4+
+                else:
+                    reward -= 1.0   # Phạt nhẹ hơn ở early game
+            else:
+                # Phạt khi chưa dùng hết board_cap
+                empty_slots = board_cap - board_size
+                if empty_slots > 0:
+                    reward -= empty_slots * 0.1  # -0.1 mỗi slot trống
+
+            # ── C. Phạt bench có tướng mà không đặt lên board ─
+            if bench_filled > 0 and board_size < board_cap:
+                reward -= bench_filled * 0.15   # -0.15 mỗi tướng trên bench chưa đặt
+
+            # ── D. Reward board quality (tướng đắt) ──────────
+            for champ in board_champs:
+                cost = get_cost(self.champion_data, champ.name)
+                if cost == 4:
+                    reward += 0.15
+                elif cost == 5:
+                    reward += 0.3
+
+            # ── E. Reward win streak ──────────────────────────
+            win_streak = self.agent.econ.win_streak
+            if win_streak >= 2:
+                reward += win_streak * 0.2  # +0.2×streak mỗi round
 
             if hp_delta < 0:
                 reward += hp_delta * (0.3 * self.game.stage)
