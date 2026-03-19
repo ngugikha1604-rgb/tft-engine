@@ -362,6 +362,18 @@ class TFTEnv(gym.Env):
                     placement   = standing,
                 )
             
+            # Phạt giữ gold quá nhiều — tăng dần theo stage
+            gold_now = self.agent.econ.gold
+            stage    = self.game.stage
+            if stage <= 3:
+                pass                                        # Early game: không phạt
+            elif stage == 4:
+                if gold_now > 70:                           # Mid game: phạt nhẹ
+                    reward -= (gold_now - 70) * 0.002
+            else:                                           # Late game (stage 5+): phạt nặng
+                if gold_now > 60:
+                    reward -= (gold_now - 60) * 0.005
+
             if hp_delta < 0:
                 reward += hp_delta * (0.3 * self.game.stage)
                 reward -= 5.0 
