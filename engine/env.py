@@ -181,9 +181,13 @@ class TFTEnv(gym.Env):
             p.econ.current_round = 1
             # Gold khởi đầu theo loại bot
             if p.name == "BossBot":
-                p.econ.gold = 20       # BossBot bắt đầu giàu hơn
-            elif p.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
-                p.econ.gold = 8
+                p.econ.gold = 20
+            elif p.name == "EconBot":
+                p.econ.gold = 15       # EconBot giữ tiền nhiều hơn
+            elif p.name == "RerollBot":
+                p.econ.gold = 12
+            elif p.name in ("ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
+                p.econ.gold = 12
             else:
                 p.econ.gold = 4
 
@@ -227,10 +231,26 @@ class TFTEnv(gym.Env):
                 # Và 2 items ngẫu nhiên
                 self._give_items_to_player(player, 2)
 
-            elif player.name in ("EconBot", "RerollBot", "ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
+            elif player.name == "EconBot":
+                # EconBot: 1 tướng 1-star, không items
                 name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
                 c    = self.game.make_champion(name)
                 player.board.place(c, 0, 3)
+
+            elif player.name == "RerollBot":
+                # RerollBot: 2 tướng 1-star để có gì reroll ngay
+                for col in [2, 4]:
+                    name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
+                    c    = self.game.make_champion(name)
+                    player.board.place(c, 0, col)
+
+            elif player.name in ("ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
+                # ModelBot: 1 tướng 2-star + 1 item
+                name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
+                c    = self.game.make_champion(name)
+                c.star = 2
+                player.board.place(c, 0, 3)
+                self._give_items_to_player(player, 1)
             else:
                 name = random.choice(champ_names)
                 c    = self.game.make_champion(name)
@@ -245,6 +265,57 @@ class TFTEnv(gym.Env):
             item_obj = self.game.item_registry.get(item_id)
             if item_obj:
                 player.add_item_to_bench(item_obj)
+
+    def _apply_bot_stage_buff(self):
+        """Hướng 1: Bot được buff thêm khi lên stage mới"""
+        stage = self.game.stage
+
+        for player in self.game.players[1:]:
+            if not player.is_alive:
+                continue
+
+            # Stage 3: bot nhận thêm 1 tướng ngẫu nhiên
+            if stage == 3 and self.game.round_num == 1:
+                champ_names  = list(self.champion_data.keys())
+                cost1_champs = [n for n, d in self.champion_data.items()
+                                if isinstance(d, dict) and d.get("cost", 1) == 1]
+                name = random.choice(cost1_champs) if cost1_champs else champ_names[0]
+                c    = self.game.make_champion(name)
+                if not player.add_to_board_auto(c):
+                    player.add_to_bench(c)
+
+            # Stage 4: bot nhận thêm 1 item + level up miễn phí
+            elif stage == 4 and self.game.round_num == 1:
+                self._give_items_to_player(player, 1)
+                if player.econ.level < 7:
+                    player.econ.level = 7
+
+            # Stage 5+: bot nhận thêm gold mỗi round
+            elif stage >= 5:
+                if player.name == "BossBot":
+                    player.econ.gold += 3
+                elif player.name in ("ModelBot", "ModelBot2", "ModelBot3", "ModelBot4"):
+                    player.econ.gold += 2
+                else:
+                    player.econ.gold += 1
+
+    def _apply_adaptive_buff(self):
+        """Hướng 3: Bot tự động buff khi agent đang thắng quá dễ"""
+        win_streak = self.agent.econ.win_streak
+        agent_hp   = self.agent.hp
+
+        # Agent win streak >= 3 → tất cả bot nhận thêm gold
+        if win_streak >= 3:
+            for player in self.game.players[1:]:
+                if player.is_alive:
+                    player.econ.gold += win_streak  # +3, +4, +5... tùy streak
+
+        # Agent HP vẫn 100 sau stage 3 → bot nhận thêm item
+        if self.game.stage >= 4 and agent_hp == 100:
+            for player in self.game.players[1:]:
+                if player.is_alive and player.name != "BossBot":
+                    if random.random() < 0.3:   # 30% chance mỗi bot
+                        self._give_items_to_player(player, 1)
 
     def _apply_loot(self):
         """Rơi đồ ngẫu nhiên mỗi round"""
@@ -339,7 +410,9 @@ class TFTEnv(gym.Env):
                 if champ: reward += self._get_role_position_reward(self._get_role(champ.name), r)
 
             self._run_bot_logic()
-            self._apply_loot() # Rơi đồ 📦
+            self._apply_loot()          # Rơi đồ 📦
+            self._apply_bot_stage_buff()  # Buff bot theo stage
+            self._apply_adaptive_buff()   # Buff bot khi agent quá mạnh
             self.game.simulate_round(verbose=False)
             self._rounds_survived += 1
 
