@@ -460,19 +460,34 @@ class TFTEnv(gym.Env):
             board_cap    = self.agent.econ.board_size  # số slot tối đa theo level
             bench_filled = sum(1 for c in self.agent.bench if c is not None)
 
-            # ── A. Phạt giữ gold quá nhiều ───────────────────
+            # ── A. Phạt giữ gold quá nhiều + thưởng giữ đúng mức ──
             gold_now = self.agent.econ.gold
             if stage <= 3:
-                pass
+                # Early game: thưởng nhỏ khi giữ 50-70 gold (lấy interest tốt)
+                if 50 <= gold_now <= 70:
+                    reward += 0.3
+                elif gold_now > 70:
+                    reward -= (gold_now - 70) * 0.005
             elif stage == 4:
-                if gold_now > 70:
-                    reward -= (gold_now - 70) * 0.008
+                # Mid game: thưởng khi giữ 50-70, phạt nếu nhiều hơn
+                if 50 <= gold_now <= 70:
+                    reward += 0.2
+                elif gold_now > 70:
+                    reward -= (gold_now - 70) * 0.02
             elif stage == 5:
-                if gold_now > 60:
-                    reward -= (gold_now - 60) * 0.015
+                # Late game: thưởng khi giữ 50-70, phạt nặng nếu nhiều hơn
+                if 50 <= gold_now <= 70:
+                    reward += 0.1
+                elif gold_now > 70:
+                    reward -= (gold_now - 70) * 0.04
+                elif gold_now > 50:
+                    reward -= (gold_now - 50) * 0.02
             else:
-                if gold_now > 50:
-                    reward -= (gold_now - 50) * 0.025
+                # Stage 6+: phạt rất nặng nếu > 50
+                if 40 <= gold_now <= 60:
+                    reward += 0.1
+                elif gold_now > 60:
+                    reward -= (gold_now - 60) * 0.06
 
             # ── B. Phạt board trống/thiếu — RẤT NẶNG ─────────
             if board_size == 0:
