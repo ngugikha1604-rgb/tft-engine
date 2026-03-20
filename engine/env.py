@@ -355,6 +355,9 @@ class TFTEnv(gym.Env):
                     econ.gold += cost
                     self.game.pool.return_champ(name)
                 else:
+                    # Reward trực tiếp khi mua tướng thành công
+                    reward += 0.5
+
                     # Kiểm tra có ghép được 2-star hoặc 3-star không
                     after_count = sum(
                         1 for c in self.agent.get_all_champions() if c.name == name
@@ -471,23 +474,34 @@ class TFTEnv(gym.Env):
                 if gold_now > 50:
                     reward -= (gold_now - 50) * 0.025
 
-            # ── B. Phạt board trống/thiếu ─────────────────────
+            # ── B. Phạt board trống/thiếu — RẤT NẶNG ─────────
             if board_size == 0:
-                if stage >= 4:
-                    reward -= 5.0   # Phạt rất nặng stage 4+
-                else:
-                    reward -= 1.0   # Phạt nhẹ hơn ở early game
+                # Phạt cực nặng tăng theo stage
+                empty_board_penalty = {
+                    2: -3.0,
+                    3: -5.0,
+                    4: -15.0,
+                    5: -25.0,
+                }.get(stage, -30.0)   # Stage 6+ phạt -30/round
+                reward += empty_board_penalty
             else:
-                # Phạt khi chưa dùng hết board_cap
+                # Phạt khi chưa dùng hết board_cap — tăng theo stage
                 empty_slots = board_cap - board_size
                 if empty_slots > 0:
-                    reward -= empty_slots * 0.1  # -0.1 mỗi slot trống
+                    slot_penalty = 0.3 if stage >= 4 else 0.15
+                    reward -= empty_slots * slot_penalty
 
             # ── C. Phạt bench có tướng mà không đặt lên board ─
             if bench_filled > 0 and board_size < board_cap:
-                reward -= bench_filled * 0.15   # -0.15 mỗi tướng trên bench chưa đặt
+                reward -= bench_filled * 0.5   # tăng từ 0.15 lên 0.5
 
-            # ── D. Reward board quality (tướng đắt) ──────────
+            # ── D. Reward interest CHỈ khi board có tướng ─────
+            # Giải pháp 3: không thưởng interest nếu board trống
+            if board_size > 0:
+                interest = min(gold_now // 10, 5)
+                reward  += 0.02 * interest
+
+            # ── E. Reward board quality (tướng đắt) ──────────
             for champ in board_champs:
                 cost = get_cost(self.champion_data, champ.name)
                 if cost == 4:
@@ -495,10 +509,10 @@ class TFTEnv(gym.Env):
                 elif cost == 5:
                     reward += 0.3
 
-            # ── E. Reward win streak ──────────────────────────
+            # ── F. Reward win streak ──────────────────────────
             win_streak = self.agent.econ.win_streak
             if win_streak >= 2:
-                reward += win_streak * 0.2  # +0.2×streak mỗi round
+                reward += win_streak * 0.2
 
             if hp_delta < 0:
                 reward += hp_delta * (0.3 * self.game.stage)
