@@ -473,21 +473,21 @@ class TFTEnv(gym.Env):
                 if 50 <= gold_now <= 70:
                     reward += 1.5
                 elif gold_now > 70:
-                    reward -= (gold_now - 70) * 5
+                    reward -= (gold_now - 70) * 7
             elif stage == 5:
                 # Late game: thưởng khi giữ 50-70, phạt nặng nếu nhiều hơn
                 if 50 <= gold_now <= 70:
                     reward += 0.1
                 elif gold_now > 70:
-                    reward -= (gold_now - 70) * 7
+                    reward -= (gold_now - 70) * 10
                 elif gold_now > 50:
-                    reward -= (gold_now - 50) * 5
+                    reward -= (gold_now - 50) * 7
             else:
                 # Stage 6+: phạt rất nặng nếu > 50
                 if 40 <= gold_now <= 60:
                     reward += 0.1
                 elif gold_now > 60:
-                    reward -= (gold_now - 60) * 10
+                    reward -= (gold_now - 60) * 20
 
             # ── B. Phạt board trống/thiếu — RẤT NẶNG ─────────
             if board_size == 0:
@@ -496,14 +496,14 @@ class TFTEnv(gym.Env):
                     2: -5.0,
                     3: -7.0,
                     4: -18.0,
-                    5: -30.0,
-                }.get(stage, -50.0)   # Stage 6+ phạt -30/round
+                    5: -50.0,
+                }.get(stage, -60.0)   # Stage 6+ phạt -30/round
                 reward += empty_board_penalty
             else:
                 # Phạt khi chưa dùng hết board_cap — tăng theo stage
                 empty_slots = board_cap - board_size
                 if empty_slots > 0:
-                    slot_penalty = 2 if stage >= 4 else 0.5
+                    slot_penalty = 5 if stage >= 4 else 1
                     reward -= empty_slots * slot_penalty
 
             # ── C. Phạt bench có tướng mà không đặt lên board ─

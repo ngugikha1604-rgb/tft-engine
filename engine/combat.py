@@ -1,6 +1,28 @@
 # combat.py - Mô phỏng trận đấu TFT theo từng tick thời gian
 
 import random
+import os
+
+# Load AbilityLoader — optional, không crash nếu chưa có file
+try:
+    from ability_loader import AbilityLoader
+    _ABILITY_LOADER_AVAILABLE = True
+except ImportError:
+    _ABILITY_LOADER_AVAILABLE = False
+
+# Khởi tạo loader global — load 1 lần duy nhất
+_ability_loader = None
+
+def get_ability_loader(path=None):
+    """Lấy AbilityLoader singleton"""
+    global _ability_loader
+    if _ability_loader is None and _ABILITY_LOADER_AVAILABLE:
+        _this_dir = os.path.dirname(os.path.abspath(__file__))
+        default   = os.path.join(_this_dir, 'data', 'abilities.json')
+        load_path = path or default
+        if os.path.exists(load_path):
+            _ability_loader = AbilityLoader(load_path)
+    return _ability_loader
 
 # ==================
 # HẰNG SỐ COMBAT
@@ -47,6 +69,7 @@ class CombatSimulator:
         self.time     = 0.0
         self.tick     = 0
         self.events   = []
+        self._ability_loader = get_ability_loader()
 
     def _do_attack(self, champ, target):
         """Thực hiện đánh thường và kích hoạt trang bị"""
@@ -187,19 +210,24 @@ class CombatSimulator:
         self.board.move(champ, best[0], best[1])
 
     def _cast_ability(self, champ):
-        """Tung chiêu — dùng ability handler nếu có, không thì AOE đơn giản"""
+        """Tung chiêu — dùng AbilityLoader nếu có, fallback về generic"""
         champ.spend_mana()
         champ.mana_lock_timer = MANA_LOCK_AFTER_CAST
 
+        # Thử dùng ability thật từ loader
+        if self._ability_loader and self._ability_loader.has(champ.name):
+            self._ability_loader.cast(champ, self)
+            return
+
+        # Fallback: generic single target magic damage
         target = self._find_target(champ)
         if not target:
             return
 
-        # Tính sát thương ability: 100% AD + bonus từ ability_power
-        ap_ratio  = getattr(champ, 'ability_power', 100) / 100.0
-        base_dmg  = champ.ad * ap_ratio
-        actual    = target.take_damage(base_dmg, damage_type="magic",
-                                       damage_amp_bonus=champ.damage_amp) or 0.0
+        ap_ratio = getattr(champ, 'ability_power', 100) / 100.0
+        base_dmg = champ.ad * ap_ratio
+        actual   = target.take_damage(base_dmg, damage_type="magic",
+                                      damage_amp_bonus=champ.damage_amp) or 0.0
 
         self.events.append(CombatEvent(
             self.time, "ability", champ.name, target=target.name, value=actual

@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "note": "Abilities cho 10 tướng đại diện Set 16",
+    "types": ["single_damage", "aoe_damage", "heal_ally", "shield_ally", "buff_ally", "debuff_enemy"]
+  },
+
+  "Sona": {
+    "name": "Power Chord",
+    "type": "heal_ally",
+    "target": "lowest_hp_ally",
+    "heal_pct": 0.20,
+    "description": "Hồi 20% HP tối đa cho đồng đội ít máu nhất"
+  },
+
+  "Jhin": {
+    "name": "Curtain Call",
+    "type": "single_damage",
+    "target": "farthest_enemy",
+    "damage_pct": 2.5,
+    "damage_type": "physical",
+    "description": "Bắn 1 viên đạn gây 250% AD lên target xa nhất"
+  },
+
+  "Yasuo": {
+    "name": "Last Breath",
+    "type": "aoe_damage",
+    "target": "nearest_enemy",
+    "radius": 2,
+    "damage_pct": 2.0,
+    "damage_type": "physical",
+    "description": "Gây 200% AD lên tất cả địch trong vùng 2 hex"
+  },
+
+  "Aphelios": {
+    "name": "Moonshot",
+    "type": "multi_hit",
+    "target": "nearest_enemy",
+    "hits": 3,
+    "damage_pct": 0.8,
+    "damage_type": "physical",
+    "description": "Bắn liên tiếp 3 phát, mỗi phát 80% AD"
+  },
+
+  "Gwen": {
+    "name": "Needlework",
+    "type": "invulnerable_then_aoe",
+    "target": "nearest_enemy",
+    "invulnerable_duration": 2.0,
+    "radius": 2,
+    "damage_pct": 3.0,
+    "damage_type": "magic",
+    "description": "Vô hiệu hóa nhận damage 2 giây, sau đó gây 300% AD vùng xung quanh"
+  },
+
+  "Draven": {
+    "name": "Spinning Axes",
+    "type": "bounce_damage",
+    "target": "nearest_enemy",
+    "damage_pct": 3.5,
+    "bounce_damage_pct": 2.0,
+    "damage_type": "physical",
+    "description": "Gây 350% AD lên target, bật lại trúng target thứ 2 gây 200% AD"
+  },
+
+  "Lissandra": {
+    "name": "Ice Tomb",
+    "type": "aoe_damage_debuff",
+    "target": "nearest_enemy",
+    "radius": 2,
+    "damage_pct": 2.0,
+    "damage_type": "magic",
+    "stun_duration": 1.5,
+    "description": "Đóng băng địch gần nhất 1.5 giây + gây 200% AP vùng 2 hex"
+  },
+
+  "Bel'Veth": {
+    "name": "Lavender Sea",
+    "type": "buff_ally",
+    "target": "all_allies",
+    "buff_stat": "attack_speed",
+    "buff_value": 0.40,
+    "buff_duration": 3.0,
+    "description": "Buff tốc đánh toàn đội +40% trong 3 giây"
+  },
+
+  "Ziggs": {
+    "name": "Mega Inferno Bomb",
+    "type": "aoe_damage_sunder",
+    "target": "nearest_enemy",
+    "radius": 3,
+    "damage_pct": 4.0,
+    "damage_type": "magic",
+    "sunder_pct": 0.30,
+    "description": "Gây 400% AP vùng 3 hex, địch còn sống mất 30% giáp"
+  },
+
+  "Thresh": {
+    "name": "Dark Passage",
+    "type": "shield_ally",
+    "target": "all_allies",
+    "shield_pct": 0.25,
+    "shield_duration": 3.0,
+    "description": "Tạo shield cho toàn đội bằng 25% HP tối đa trong 3 giây"
+  }
+}
