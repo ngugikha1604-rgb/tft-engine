@@ -41,6 +41,19 @@ for _s in range(2, 10):
 ROUNDS_PER_STAGE         = {1: 3}
 ROUNDS_PER_STAGE_DEFAULT = 7
 
+# PvE Creep stats theo (stage, round)
+PVE_CREEP_DATA = {
+    (1, 1): {"hp": 200,  "ad": 15,  "count": 2, "armor": 5,  "mr": 5,  "gold_reward": 1},
+    (1, 2): {"hp": 300,  "ad": 25,  "count": 3, "armor": 10, "mr": 10, "gold_reward": 1},
+    (1, 3): {"hp": 400,  "ad": 35,  "count": 4, "armor": 15, "mr": 15, "gold_reward": 2},
+    (2, 7): {"hp": 800,  "ad": 65,  "count": 4, "armor": 25, "mr": 25, "gold_reward": 2},
+    (3, 7): {"hp": 1200, "ad": 90,  "count": 5, "armor": 35, "mr": 30, "gold_reward": 3},
+    (4, 7): {"hp": 1800, "ad": 120, "count": 6, "armor": 45, "mr": 40, "gold_reward": 3},
+    (5, 7): {"hp": 2500, "ad": 160, "count": 6, "armor": 55, "mr": 50, "gold_reward": 4},
+}
+
+PVE_ITEM_DROP_CHANCE = 0.5   # 50% chance nhận item khi thắng PvE
+
 # ==================
 # PLAYER
 # ==================
