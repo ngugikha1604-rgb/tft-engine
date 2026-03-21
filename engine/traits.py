@@ -323,174 +323,19 @@ class TraitManager:
 
 
 # ==================
-# DEFAULT TRAITS (Set 16)
-# Dùng khi chưa có traits.json
+# DEFAULT TRAITS — load từ traits.json
 # ==================
 
-DEFAULT_TRAITS = {
-    "_meta": {"note": "Set 16 traits — stats approximate"},
+def _load_default_traits():
+    """Load traits từ data/traits.json cùng thư mục"""
+    import os
+    _this_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(_this_dir, 'data', 'traits.json')
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    # Fallback rỗng nếu không có file
+    print("[TraitManager] WARNING: data/traits.json không tìm thấy!")
+    return {}
 
-    "Bruiser": {
-        "thresholds": [2, 4, 6],
-        "effects": [
-            {"type": "stat", "stat": "hp_pct",   "value": 0.15},
-            {"type": "stat", "stat": "hp_pct",   "value": 0.30},
-            {"type": "stat", "stat": "hp_pct",   "value": 0.55},
-        ]
-    },
-    "Slayer": {
-        "thresholds": [2, 4, 6],
-        "effects": [
-            {"type": "stat", "stat": "crit_chance",  "value": 0.10},
-            {"type": "stat", "stat": "crit_damage",  "value": 0.20},
-            {"type": "stat", "stat": "damage_amp",   "value": 0.30},
-        ]
-    },
-    "Invoker": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "mana_flat",  "value": 15},
-            {"type": "stat", "stat": "mana_flat",  "value": 30},
-        ]
-    },
-    "Defender": {
-        "thresholds": [2, 4, 6],
-        "effects": [
-            {"type": "stat", "stat": "armor_flat", "value": 20},
-            {"type": "stat", "stat": "armor_flat", "value": 45},
-            {"type": "stat", "stat": "armor_flat", "value": 80},
-        ]
-    },
-    "Juggernaut": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "damage_reduction", "value": 0.10},
-            {"type": "stat", "stat": "damage_reduction", "value": 0.20},
-        ]
-    },
-    "Quickstriker": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "as_pct",    "value": 0.15},
-            {"type": "stat", "stat": "as_pct",    "value": 0.30},
-        ]
-    },
-    "Gunslinger": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "ad_pct",    "value": 0.10},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.25},
-        ]
-    },
-    "Longshot": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "ad_pct",    "value": 0.12},
-            {"type": "stat", "stat": "crit_chance","value": 0.15},
-        ]
-    },
-    "Bastion": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "mr_flat",   "value": 25},
-            {"type": "stat", "stat": "mr_flat",   "value": 55},
-        ]
-    },
-    "Disruptor": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "damage_amp", "value": 0.08},
-            {"type": "stat", "stat": "damage_amp", "value": 0.18},
-        ]
-    },
-    "Arcanist": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "damage_amp", "value": 0.10},
-            {"type": "stat", "stat": "damage_amp", "value": 0.25},
-        ]
-    },
-
-    # Region traits — bonus nhẹ hơn class traits
-    "Ionia": {
-        "thresholds": [3, 5, 7, 10],
-        "effects": [
-            {"type": "stat", "stat": "ad_pct",    "value": 0.05},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.10},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.15},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.25},
-        ]
-    },
-    "Freljord": {
-        "thresholds": [3, 5, 7],
-        "effects": [
-            {"type": "stat", "stat": "armor_flat", "value": 15},
-            {"type": "stat", "stat": "armor_flat", "value": 30},
-            {"type": "stat", "stat": "armor_flat", "value": 50},
-        ]
-    },
-    "Noxus": {
-        "thresholds": [3, 5, 7],
-        "effects": [
-            {"type": "stat", "stat": "ad_pct",    "value": 0.08},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.15},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.25},
-        ]
-    },
-    "Demacia": {
-        "thresholds": [3, 5, 7],
-        "effects": [
-            {"type": "stat", "stat": "hp_pct",    "value": 0.08},
-            {"type": "stat", "stat": "hp_pct",    "value": 0.15},
-            {"type": "stat", "stat": "hp_pct",    "value": 0.25},
-        ]
-    },
-    "Shadow Isles": {
-        "thresholds": [3, 5],
-        "effects": [
-            {"type": "stat", "stat": "damage_amp", "value": 0.08},
-            {"type": "stat", "stat": "damage_amp", "value": 0.18},
-        ]
-    },
-    "Void": {
-        "thresholds": [3, 5],
-        "effects": [
-            {"type": "stat", "stat": "damage_reduction", "value": 0.08},
-            {"type": "stat", "stat": "damage_reduction", "value": 0.18},
-        ]
-    },
-    "Zaun": {
-        "thresholds": [3, 5],
-        "effects": [
-            {"type": "stat", "stat": "as_pct",    "value": 0.10},
-            {"type": "stat", "stat": "as_pct",    "value": 0.20},
-        ]
-    },
-    "Shurima": {
-        "thresholds": [3, 5],
-        "effects": [
-            {"type": "stat", "stat": "hp_pct",    "value": 0.10},
-            {"type": "stat", "stat": "ad_pct",    "value": 0.10},
-        ]
-    },
-    "Targon": {
-        "thresholds": [2, 4],
-        "effects": [
-            {"type": "stat", "stat": "mr_flat",   "value": 20},
-            {"type": "stat", "stat": "mr_flat",   "value": 40},
-        ]
-    },
-    "Bilgewater": {
-        "thresholds": [3, 5],
-        "effects": [
-            {"type": "stat", "stat": "crit_chance", "value": 0.10},
-            {"type": "stat", "stat": "crit_damage", "value": 0.20},
-        ]
-    },
-    "Yordle": {
-        "thresholds": [3],
-        "effects": [
-            {"type": "stat", "stat": "as_pct",    "value": 0.15},
-        ]
-    },
-}
+DEFAULT_TRAITS = _load_default_traits()

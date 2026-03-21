@@ -102,6 +102,118 @@
     "traits": ["Shadow Isles", "Quickstriker"],
     "role": "fighter"
   },
+  
+  "Blitzcrank": {
+    "cost": 1,
+    "hp": 700,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 50,
+    "attack_speed": 0.55,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 105,
+    "traits": ["Zaun", "Juggernaut"],
+    "role": "tank"
+  },
+
+  "Briar": {
+    "cost": 1,
+    "hp": 550,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 42,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 40,
+    "traits": ["Noxus", "Slayer"],
+    "role": "fighter"
+  },
+  
+  "Caitlyn": {
+    "cost": 1,
+    "hp": 500,
+    "armor": 15,
+    "mr": 15,
+    "attack_damage": 45,
+    "attack_speed": 0.75,
+    "range": 5,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Piltover", "Longshot"],
+    "role": "marksman"
+  },
+  
+  "Kog'Maw": {
+    "cost": 1,
+    "hp": 500,
+    "armor": 15,
+    "mr": 15,
+    "attack_damage": 20,
+    "attack_speed": 0.7,
+    "range": 5,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Void", "Longshot"],
+    "role": "caster"
+  },
+    
+  "Lulu": {
+    "cost": 1,
+    "hp": 500,
+    "armor": 15,
+    "mr": 15,
+    "attack_damage": 20,
+    "attack_speed": 0.7,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 70,
+    "traits": ["Yordle", "Arcanist"],
+    "role": "caster"
+  },
+    
+  "Qiyana": {
+    "cost": 1,
+    "hp": 650,
+    "armor": 35,
+    "mr": 35,
+    "attack_damage": 42,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Ixtal", "Slayer"],
+    "role": "fighter"
+  },
+      
+  "Rumble": {
+    "cost": 1,
+    "hp": 700,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 45,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 110,
+    "traits": ["Yordle", "Defender"],
+    "role": "tank"
+  },
+      
+  "Ashe": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 60,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Freljord", "Quickstriker"],
+    "role": "marksman"
+  },
 
   "Yasuo": {
     "cost": 2,
@@ -186,6 +298,174 @@
     "traits": ["Targon", "Longshot"],
     "role": "marksman"
   },
+        
+  "Bard": {
+    "cost": 2,
+    "hp": 750,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 30,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 55,
+    "traits": ["Freljord", "Invoker"],
+    "role": "caster"
+  },
+        
+  "Ekko": {
+    "cost": 2,
+    "hp": 750,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 35,
+    "attack_speed": 0.85,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 40,
+    "traits": ["Zaun", "Disruptor"],
+    "role": "fighter"
+  },
+        
+  "Graves": {
+    "cost": 2,
+    "hp": 700,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 50,
+    "attack_speed": 0.7,
+    "range": 2,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Bilgewater", "Gunslinger"],
+    "role": "fighter"
+  },
+        
+  "Neeko": {
+    "cost": 2,
+    "hp": 850,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 50,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 65,
+    "traits": ["Ixtal", "Defender", "Arcanist"],
+    "role": "tank"
+  },
+        
+  "Orianna": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 30,
+    "attack_speed": 0.7,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Piltover", "Invoker"],
+    "role": "caster"
+  },
+        
+  "Poppy": {
+    "cost": 2,
+    "hp": 850,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 50,
+    "attack_speed": 0.7,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 80,
+    "traits": ["Demacia", "Yordle", "Juggernaut"],
+    "role": "tank"
+  },
+        
+  "Teemo": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 35,
+    "attack_speed": 0.75,
+    "range": 5,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Yordle", "Longshot"],
+    "role": "caster"
+  },
+        
+  "Tristana": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 55,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Yordle", "Gunslinger"],
+    "role": "marksman"
+  },
+        
+  "Tryndamere": {
+    "cost": 2,
+    "hp": 750,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 60,
+    "attack_speed": 0.75,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Freljord", "Slayer"],
+    "role": "fighter"
+  },
+        
+  "Twisted Fate": {
+    "cost": 2,
+    "hp": 550,
+    "armor": 20,
+    "mr": 20,
+    "attack_damage": 40,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Bilgewater", "Quickstriker"],
+    "role": "marksman"
+  },
+        
+  "Vi": {
+    "cost": 2,
+    "hp": 700,
+    "armor": 40,
+    "mr": 40,
+    "attack_damage": 60,
+    "attack_speed": 0.85,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Piltover", "Defender"],
+    "role": "fighter"
+  },
+        
+  "Yorick": {
+    "cost": 2,
+    "hp": 850,
+    "armor": 45,
+    "mr": 45,
+    "attack_damage": 60,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 75,
+    "traits": ["Shadow Isles", "Bastion"],
+    "role": "tank"
+  },
 
   "Sejuani": {
     "cost": 3,
@@ -241,6 +521,202 @@
     "mana_max": 60,
     "traits": ["Zaun", "Bruiser"],
     "role": "tank"
+  },
+  
+  "Ahri": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 30,
+    "attack_speed": 0.8,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 30,
+    "traits": ["Ionia", "Arcanist"],
+    "role": "caster"
+  },
+  
+  "Darius": {
+    "cost": 3,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 50,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 65,
+    "traits": ["Noxus", "Defender"],
+    "role": "tank"
+  },
+    
+  "Gangplank": {
+    "cost": 3,
+    "hp": 850,
+    "armor": 55,
+    "mr": 55,
+    "attack_damage": 45,
+    "attack_speed": 0.8,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 50,
+    "traits": ["Bilgewater", "Slayer"],
+    "role": "fighter"
+  },
+    
+  "Jinx": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 50,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 100,
+    "traits": ["Zaun", "Gunslinger"],
+    "role": "marksman"
+  },
+    
+  "Kennen": {
+    "cost": 3,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 50,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 125,
+    "traits": ["Ionia", "Yordle", "Defender"],
+    "role": "tank"
+  },
+    
+  "Kobuko & Yuumi": {
+    "cost": 3,
+    "hp": 950,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 20,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 90,
+    "traits": ["Yordle", "Bruiser", "Invoker"],
+    "role": "tank"
+  },
+    
+  "LeBlanc": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 35,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Noxus", "Invoker"],
+    "role": "caster"
+  },
+    
+  "Leona": {
+    "cost": 3,
+    "hp": 1000,
+    "armor": 60,
+    "mr": 60,
+    "attack_damage": 50,
+    "attack_speed": 0.65,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 120,
+    "traits": ["Targon", "Juggernaut"],
+    "role": "tank"
+  },
+    
+  "Loris": {
+    "cost": 3,
+    "hp": 950,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 60,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 140,
+    "traits": ["Piltover", "Bastion"],
+    "role": "tank"
+  },
+    
+  "Malzahar": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 30,
+    "attack_speed": 0.8,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 35,
+    "traits": ["Void", "Disruptor"],
+    "role": "caster"
+  },
+    
+  "Milio": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 30,
+    "mr": 30,
+    "attack_damage": 30,
+    "attack_speed": 0.75,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Ixtal", "Invoker"],
+    "role": "caster"
+  },
+      
+  "Nautilus": {
+    "cost": 3,
+    "hp": 900,
+    "armor": 50,
+    "mr": 50,
+    "attack_damage": 50,
+    "attack_speed": 0.6,
+    "range": 1,
+    "mana_start": 0,
+    "mana_max": 120,
+    "traits": ["Bilgewater", "Bastion", "Juggernaut"],
+    "role": "tank"
+  },
+      
+  "Vayne": {
+    "cost": 3,
+    "hp": 650,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 70,
+    "attack_speed": 0.9,
+    "range": 5,
+    "mana_start": 0,
+    "mana_max": 40,
+    "traits": ["Demacia", "Longshot"],
+    "role": "marksman"
+  },
+      
+  "Zoe": {
+    "cost": 3,
+    "hp": 800,
+    "armor": 25,
+    "mr": 25,
+    "attack_damage": 35,
+    "attack_speed": 0.8,
+    "range": 4,
+    "mana_start": 0,
+    "mana_max": 60,
+    "traits": ["Targon", "Invoker"],
+    "role": "caster"
   },
 
   "Braum": {
