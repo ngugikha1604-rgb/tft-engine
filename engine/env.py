@@ -563,12 +563,18 @@ class TFTEnv(gym.Env):
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
 
-                # Tính rank dựa trên số player còn sống nhiều HP hơn agent
+                # Tính rank — chỉ đếm player còn sống VÀ có HP cao hơn agent
                 agent_hp  = self.agent.hp
                 rank      = sum(
                     1 for p in self.game.players
-                    if p is not self.agent and p.hp > agent_hp
+                    if p is not self.agent
+                    and p.is_alive             # phải còn sống
+                    and p.hp > agent_hp        # HP cao hơn agent
                 )
+                # Nếu agent chết (hp=0), cộng thêm số player còn sống
+                if not self.agent.is_alive:
+                    rank = sum(1 for p in self.game.players
+                               if p is not self.agent and p.is_alive)
                 reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
