@@ -33,15 +33,20 @@ N_BOARD_SLOTS = 28
 N_ITEM_SLOTS  = 10
 N_OPPONENTS   = 7
 
-ACTION_BUY_SHOP   = list(range(0, 5))
-ACTION_REROLL     = 5
-ACTION_BUY_XP     = 6
-ACTION_SELL_BENCH = list(range(7, 16))
-ACTION_PLACE_BASE = 16
-ACTION_PASS       = 16 + (N_BENCH_SLOTS * N_BOARD_SLOTS) # 268
-ACTION_EQUIP_ITEM_BASE = ACTION_PASS + 1               # 269
-TOTAL_ACTIONS = ACTION_EQUIP_ITEM_BASE + (N_ITEM_SLOTS * N_BOARD_SLOTS) # 549
-OBS_SIZE = 260 
+ACTION_BUY_SHOP        = list(range(0, 5))
+ACTION_REROLL          = 5
+ACTION_BUY_XP          = 6
+ACTION_SELL_BENCH      = list(range(7, 16))
+ACTION_PLACE_BASE      = 16
+ACTION_PASS            = 16 + (N_BENCH_SLOTS * N_BOARD_SLOTS)  # 268
+ACTION_EQUIP_ITEM_BASE = ACTION_PASS + 1                        # 269
+ACTION_CAROUSEL_BASE   = ACTION_EQUIP_ITEM_BASE + (N_ITEM_SLOTS * N_BOARD_SLOTS)  # 549
+N_CAROUSEL_SLOTS       = 9
+ACTION_AUGMENT_BASE    = ACTION_CAROUSEL_BASE + N_CAROUSEL_SLOTS  # 558
+N_AUGMENT_OPTIONS      = 3
+TOTAL_ACTIONS          = ACTION_AUGMENT_BASE + N_AUGMENT_OPTIONS  # 561
+
+OBS_SIZE = 260 + N_CAROUSEL_SLOTS * 2 + N_AUGMENT_OPTIONS * 2  # 284 
 
 def get_cost(champion_data, name, default=1):
     val = champion_data.get(name, default)
@@ -192,6 +197,9 @@ class TFTEnv(gym.Env):
                 p.econ.gold = 4
 
         self._setup_initial_units()
+
+        # Apply encounter đầu game
+        self.game.apply_encounter()
 
         # Roll shop đầu tiên cho agent
         self.agent.econ.shop.roll(self.agent.econ.level)
@@ -400,13 +408,23 @@ class TFTEnv(gym.Env):
             b_idx, bd_idx = rel // N_BOARD_SLOTS, rel % N_BOARD_SLOTS
             row, col = BOARD_POSITIONS[bd_idx]
             self.agent.place_on_board(b_idx, row, col)
-        elif ACTION_EQUIP_ITEM_BASE <= action < TOTAL_ACTIONS:
+        elif ACTION_EQUIP_ITEM_BASE <= action < ACTION_CAROUSEL_BASE:
             rel = action - ACTION_EQUIP_ITEM_BASE
             item_idx, board_idx = rel // N_BOARD_SLOTS, rel % N_BOARD_SLOTS
             r, c = BOARD_POSITIONS[board_idx]
             target = self.agent.board.get(r, c)
             if target and self.agent.equip_item_to_champ(item_idx, target):
-                reward += 0.5 
+                reward += 0.5
+
+        elif ACTION_CAROUSEL_BASE <= action < ACTION_AUGMENT_BASE:
+            slot_idx = action - ACTION_CAROUSEL_BASE
+            if self.game.pick_carousel(self.agent, slot_idx):
+                reward += 2.0   # Thưởng khi chọn được tướng carousel
+
+        elif ACTION_AUGMENT_BASE <= action < TOTAL_ACTIONS:
+            aug_idx = action - ACTION_AUGMENT_BASE
+            if self.game.pick_augment(self.agent, aug_idx):
+                reward += 3.0   # Thưởng khi chọn augment 
 
         curr_p = self._get_player_combat_power(self.agent)
         reward += (curr_p - self._prev_combat_power) * 0.1 
@@ -432,11 +450,20 @@ class TFTEnv(gym.Env):
             self._apply_loot()          # Rơi đồ 📦
             self._apply_bot_stage_buff()  # Buff bot theo stage
             self._apply_adaptive_buff()   # Buff bot khi agent quá mạnh
-            self.game.simulate_round(verbose=False)
+
+            hp_before = self.agent.hp
+            results   = self.game.simulate_round(verbose=False)
             self._rounds_survived += 1
 
             hp_delta = self.agent.hp - self._prev_hp
             self._prev_hp = self.agent.hp
+
+            # Penalty nặng khi thua PvE
+            for player, _, result in results:
+                if player is self.agent:
+                    if result.get("pve") and not result.get("pve_won"):
+                        reward -= 35.0   # Phạt nặng khi thua PvE
+                    break
 
             # Logger round end (replay mode)
             if self.logger.mode == 'replay':
@@ -465,50 +492,50 @@ class TFTEnv(gym.Env):
             if stage <= 3:
                 # Early game: thưởng nhỏ khi giữ 50-70 gold (lấy interest tốt)
                 if 50 <= gold_now <= 70:
-                    reward += 1
+                    reward += 0.3
                 elif gold_now > 70:
-                    reward -= (gold_now - 70) * 3
+                    reward -= (gold_now - 70) * 0.005
             elif stage == 4:
                 # Mid game: thưởng khi giữ 50-70, phạt nếu nhiều hơn
                 if 50 <= gold_now <= 70:
-                    reward += 1.5
+                    reward += 0.2
                 elif gold_now > 70:
-                    reward -= (gold_now - 70) * 7
+                    reward -= (gold_now - 70) * 0.02
             elif stage == 5:
                 # Late game: thưởng khi giữ 50-70, phạt nặng nếu nhiều hơn
                 if 50 <= gold_now <= 70:
                     reward += 0.1
                 elif gold_now > 70:
-                    reward -= (gold_now - 70) * 10
+                    reward -= (gold_now - 70) * 0.04
                 elif gold_now > 50:
-                    reward -= (gold_now - 50) * 7
+                    reward -= (gold_now - 50) * 0.02
             else:
                 # Stage 6+: phạt rất nặng nếu > 50
                 if 40 <= gold_now <= 60:
                     reward += 0.1
                 elif gold_now > 60:
-                    reward -= (gold_now - 60) * 20
+                    reward -= (gold_now - 60) * 0.06
 
             # ── B. Phạt board trống/thiếu — RẤT NẶNG ─────────
             if board_size == 0:
                 # Phạt cực nặng tăng theo stage
                 empty_board_penalty = {
-                    2: -5.0,
-                    3: -7.0,
-                    4: -18.0,
-                    5: -50.0,
-                }.get(stage, -60.0)   # Stage 6+ phạt -30/round
+                    2: -3.0,
+                    3: -5.0,
+                    4: -15.0,
+                    5: -25.0,
+                }.get(stage, -30.0)   # Stage 6+ phạt -30/round
                 reward += empty_board_penalty
             else:
                 # Phạt khi chưa dùng hết board_cap — tăng theo stage
                 empty_slots = board_cap - board_size
                 if empty_slots > 0:
-                    slot_penalty = 5 if stage >= 4 else 1
+                    slot_penalty = 0.3 if stage >= 4 else 0.15
                     reward -= empty_slots * slot_penalty
 
             # ── C. Phạt bench có tướng mà không đặt lên board ─
             if bench_filled > 0 and board_size < board_cap:
-                reward -= bench_filled * 0.8   # tăng từ 0.15 lên 0.5
+                reward -= bench_filled * 0.5   # tăng từ 0.15 lên 0.5
 
             # ── D. Reward interest CHỈ khi board có tướng ─────
             # Giải pháp 3: không thưởng interest nếu board trống
@@ -520,9 +547,9 @@ class TFTEnv(gym.Env):
             for champ in board_champs:
                 cost = get_cost(self.champion_data, champ.name)
                 if cost == 4:
-                    reward += 1
+                    reward += 0.15
                 elif cost == 5:
-                    reward += 5
+                    reward += 0.3
 
             # ── F. Reward win streak ──────────────────────────
             win_streak = self.agent.econ.win_streak
@@ -802,7 +829,20 @@ class TFTEnv(gym.Env):
                     mask[action_id] = 1
 
         mask[ACTION_PASS] = 1
-        # Final safety — không bao giờ trả về all-zero
+
+        # Carousel actions — chỉ available trong carousel round
+        if self.game.get_round_type() == 'carousel':
+            for i, slot in enumerate(self.game._carousel_slots):
+                if slot is not None:
+                    mask[ACTION_CAROUSEL_BASE + i] = 1
+
+        # Augment actions — chỉ available trong augment round
+        if self.game.get_round_type() == 'augment':
+            offers = self.game._augment_offers.get(player.name, [])
+            for i in range(min(len(offers), N_AUGMENT_OPTIONS)):
+                mask[ACTION_AUGMENT_BASE + i] = 1
+
+        # Final safety
         if mask.sum() == 0:
             mask[ACTION_PASS] = 1
         return mask
@@ -869,5 +909,31 @@ class TFTEnv(gym.Env):
                     level, _ = trait.get_active_level(trait_counts.get(t_name, 0))
                     obs[idx] = level / 3.0
                 idx += 1
+
+        # Carousel slots (18) — champion_id/n + item_id/(n_items+1)
+        carousel_slots = getattr(self.game, '_carousel_slots', [])
+        for i in range(N_CAROUSEL_SLOTS):
+            if idx + 1 < OBS_SIZE:
+                if i < len(carousel_slots) and carousel_slots[i]:
+                    slot  = carousel_slots[i]
+                    champ = slot.get('champion')
+                    item  = slot.get('item')
+                    if champ:
+                        obs[idx]   = self.champ_id_map.get(champ.name, 0) / self.n_champions
+                    if item:
+                        obs[idx+1] = self.item_id_map.get(item.item_id, 0) / (len(self.item_list) + 1)
+            idx += 2
+
+        # Augment offers (6) — augment_idx/n_augments cho 3 slots
+        aug_offers = getattr(self.game, '_augment_offers', {}).get(player.name, [])
+        aug_pool   = getattr(self.game, '_augment_pool', [])
+        n_aug      = max(len(aug_pool), 1)
+        for i in range(N_AUGMENT_OPTIONS):
+            if idx < OBS_SIZE:
+                if i < len(aug_offers):
+                    aug_id = aug_offers[i].get('id', '')
+                    aug_idx = next((j for j, a in enumerate(aug_pool) if a.get('id') == aug_id), 0)
+                    obs[idx] = aug_idx / n_aug
+            idx += 1
 
         return obs

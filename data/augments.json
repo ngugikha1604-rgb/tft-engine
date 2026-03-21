@@ -1,0 +1,115 @@
+{
+  "_meta": {
+    "note": "Augments cho TFT simulator — tự điền data thật sau mỗi patch",
+    "tiers": ["silver", "gold", "prismatic"],
+    "effect_types": ["stat", "combat", "economy", "board"]
+  },
+
+  "augments": [
+    {
+      "id": "blue_battery",
+      "name": "Blue Battery",
+      "tier": "silver",
+      "description": "Tất cả tướng bắt đầu với +20 mana",
+      "effect": {"type": "stat", "stat": "mana_start", "value": 20, "target": "all_allies"}
+    },
+    {
+      "id": "thrill_of_the_hunt",
+      "name": "Thrill of the Hunt",
+      "tier": "silver",
+      "description": "Tướng gây sát thương chí mạng hồi 3% HP tối đa",
+      "effect": {"type": "combat", "trigger": "on_crit", "heal_pct": 0.03, "target": "attacker"}
+    },
+    {
+      "id": "cybernetic_bulk",
+      "name": "Cybernetic Bulk",
+      "tier": "silver",
+      "description": "Tướng có trang bị +200 HP và +15 giáp",
+      "effect": {"type": "stat", "stat": "hp_flat", "value": 200, "bonus_armor": 15, "condition": "has_item"}
+    },
+    {
+      "id": "featherweights",
+      "name": "Featherweights",
+      "tier": "silver",
+      "description": "Tướng 1 và 2 vàng +25% tốc đánh",
+      "effect": {"type": "stat", "stat": "as_pct", "value": 0.25, "condition": "cost_lte_2"}
+    },
+    {
+      "id": "golden_gifts",
+      "name": "Golden Gifts",
+      "tier": "silver",
+      "description": "Nhận thêm 3 gold mỗi round",
+      "effect": {"type": "economy", "gold_per_round": 3}
+    },
+    {
+      "id": "lategame_specialist",
+      "name": "Late Game Specialist",
+      "tier": "gold",
+      "description": "Level up miễn phí 1 lần",
+      "effect": {"type": "board", "free_level_up": 1}
+    },
+    {
+      "id": "cram_session",
+      "name": "Cram Session",
+      "tier": "gold",
+      "description": "Nhận ngay 2 trang bị ngẫu nhiên",
+      "effect": {"type": "economy", "instant_items": 2}
+    },
+    {
+      "id": "tons_of_stats",
+      "name": "Tons of Stats",
+      "tier": "gold",
+      "description": "Tất cả tướng +15% AD, +15% AS, +150 HP",
+      "effect": {"type": "stat", "ad_pct": 0.15, "as_pct": 0.15, "hp_flat": 150, "target": "all_allies"}
+    },
+    {
+      "id": "combat_training",
+      "name": "Combat Training",
+      "tier": "gold",
+      "description": "Tướng nhận +2 AD mỗi khi giết địch (tích lũy)",
+      "effect": {"type": "combat", "trigger": "on_kill", "ad_stack": 2, "target": "killer"}
+    },
+    {
+      "id": "windfall",
+      "name": "Windfall",
+      "tier": "gold",
+      "description": "Nhận ngay 12 gold",
+      "effect": {"type": "economy", "instant_gold": 12}
+    },
+    {
+      "id": "final_ascent",
+      "name": "Final Ascent",
+      "tier": "prismatic",
+      "description": "Tất cả tướng +30% AD, +25% AS, +300 HP",
+      "effect": {"type": "stat", "ad_pct": 0.30, "as_pct": 0.25, "hp_flat": 300, "target": "all_allies"}
+    },
+    {
+      "id": "cursed_crown",
+      "name": "Cursed Crown",
+      "tier": "prismatic",
+      "description": "+2 board size nhưng mất 20 HP tối đa",
+      "effect": {"type": "board", "extra_board_size": 2, "hp_penalty": 20}
+    },
+    {
+      "id": "ricochet",
+      "name": "Ricochet",
+      "tier": "prismatic",
+      "description": "Đòn đánh thường bắn thêm vào 2 địch gần đó với 40% damage",
+      "effect": {"type": "combat", "trigger": "on_attack", "bounce_count": 2, "bounce_dmg_pct": 0.4}
+    },
+    {
+      "id": "true_twos",
+      "name": "True Twos",
+      "tier": "prismatic",
+      "description": "Tướng 2-star +50% AD và +25% HP",
+      "effect": {"type": "stat", "ad_pct": 0.50, "hp_pct": 0.25, "condition": "star_gte_2"}
+    },
+    {
+      "id": "golden_ticket",
+      "name": "Golden Ticket",
+      "tier": "prismatic",
+      "description": "Nhận 20 gold và 3 trang bị ngẫu nhiên",
+      "effect": {"type": "economy", "instant_gold": 20, "instant_items": 3}
+    }
+  ]
+}

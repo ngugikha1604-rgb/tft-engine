@@ -1,0 +1,57 @@
+{
+  "_meta": {
+    "note": "Encounters — kì ngộ xảy ra 1 lần đầu game cho tất cả người chơi",
+    "effect_types": ["items", "gold", "hp", "interest", "xp"]
+  },
+
+  "encounters": [
+    {
+      "id": "armory",
+      "name": "Armory",
+      "description": "Tất cả người chơi nhận 2 trang bị ngẫu nhiên",
+      "effect": {"type": "items", "count": 2}
+    },
+    {
+      "id": "treasure_chest",
+      "name": "Treasure Chest",
+      "description": "Tất cả người chơi nhận 8 gold khởi đầu thêm",
+      "effect": {"type": "gold", "amount": 8}
+    },
+    {
+      "id": "blessed_lands",
+      "name": "Blessed Lands",
+      "description": "HP tối đa tăng lên 110 cho tất cả",
+      "effect": {"type": "hp", "max_hp": 110}
+    },
+    {
+      "id": "rich_get_richer",
+      "name": "Rich Get Richer",
+      "description": "Interest tối đa tăng từ 5 lên 8",
+      "effect": {"type": "interest", "max_interest": 8}
+    },
+    {
+      "id": "head_start",
+      "name": "Head Start",
+      "description": "Tất cả bắt đầu ở level 3 thay vì level 1",
+      "effect": {"type": "xp", "start_level": 3}
+    },
+    {
+      "id": "item_shop",
+      "name": "Item Shop",
+      "description": "Tất cả người chơi nhận 1 trang bị và 5 gold",
+      "effect": {"type": "combined", "items": 1, "gold": 5}
+    },
+    {
+      "id": "second_wind",
+      "name": "Second Wind",
+      "description": "Tất cả người chơi nhận 3 trang bị",
+      "effect": {"type": "items", "count": 3}
+    },
+    {
+      "id": "loaded_dice",
+      "name": "Loaded Dice",
+      "description": "Tất cả người chơi nhận 10 gold",
+      "effect": {"type": "gold", "amount": 10}
+    }
+  ]
+}

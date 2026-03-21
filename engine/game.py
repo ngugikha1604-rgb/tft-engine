@@ -24,11 +24,22 @@ def load_champions_json(path):
 # ==================
 # ROUND SCHEDULE
 # ==================
-PVE_ROUNDS = {
-    (1, 1), (1, 2), (1, 3), (1, 4),
-    (2, 5), (3, 5), (4, 5),
-}
-CAROUSEL_ROUNDS = {(1, 1)}
+# Stage 1: 3 rounds PvE | Stage 2+: 7 rounds (X-2 augment, X-4 carousel, X-7 PvE)
+PVE_ROUNDS = {(1, 1), (1, 2), (1, 3)}
+for _s in range(2, 10):
+    PVE_ROUNDS.add((_s, 7))
+
+CAROUSEL_ROUNDS = set()
+for _s in range(2, 10):
+    CAROUSEL_ROUNDS.add((_s, 4))
+
+# Override AUGMENT_ROUNDS từ augments.py import
+AUGMENT_ROUNDS = set()
+for _s in range(2, 10):
+    AUGMENT_ROUNDS.add((_s, 2))
+
+ROUNDS_PER_STAGE         = {1: 3}
+ROUNDS_PER_STAGE_DEFAULT = 7
 
 # ==================
 # PLAYER
@@ -248,10 +259,195 @@ class Game:
         # Round tracking
         self.stage       = 1
         self.round_num   = 1
-        self.round_count = 0       # Tổng số round đã chơi
+        self.round_count = 0
 
         # Match history
         self.match_log   = []
+
+        # Augment/Encounter data
+        import os as _os
+        _base = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'data')
+        self._augment_pool   = self._load_json(_os.path.join(_base, 'augments.json'), 'augments')
+        self._encounter_pool = self._load_json(_os.path.join(_base, 'encounters.json'), 'encounters')
+
+        # Active encounter cho game này
+        self._active_encounter = None
+
+        # Carousel state
+        self._carousel_slots = []   # list of (champion, item) cho round carousel hiện tại
+
+        # Augment offered per player per round
+        self._augment_offers = {}   # player_name -> list of 3 augments
+
+    # ==================
+    # HELPERS
+    # ==================
+
+    def _load_json(self, path, key):
+        """Load list từ JSON file"""
+        import os
+        if not os.path.exists(path):
+            return []
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return [e for e in data.get(key, []) if not str(e.get('id','')).startswith('_')]
+
+    def apply_encounter(self):
+        """Apply encounter ngẫu nhiên cho tất cả players — gọi 1 lần đầu game"""
+        if not self._encounter_pool:
+            return
+        enc = random.choice(self._encounter_pool)
+        self._active_encounter = enc
+        effect = enc.get('effect', {})
+        etype  = effect.get('type')
+
+        for player in self.players:
+            if etype == 'items' or etype == 'combined':
+                count = effect.get('count', effect.get('items', 1))
+                if self.item_registry:
+                    items = list(self.item_registry._items.values())
+                    for _ in range(count):
+                        if items:
+                            player.add_item_to_bench(random.choice(items))
+            if etype == 'gold' or etype == 'combined':
+                player.econ.gold += effect.get('amount', effect.get('gold', 0))
+            if etype == 'hp':
+                player.econ.hp = min(player.econ.hp + 10, effect.get('max_hp', 110))
+            if etype == 'xp':
+                start_level = effect.get('start_level', 3)
+                if player.econ.level < start_level:
+                    player.econ.level = start_level
+
+        if self._active_encounter:
+            self.match_log.append(f"[Encounter] {enc['name']}: {enc['description']}")
+
+    def generate_carousel(self):
+        """Tạo 9 slots carousel theo stage hiện tại"""
+        # Xác định cost pool theo stage
+        if self.stage <= 2:
+            cost_pool = [1, 2, 3]
+        elif self.stage == 3:
+            cost_pool = [1, 2, 3, 4]
+        else:
+            cost_pool = [1, 2, 3, 4, 5]
+
+        champ_names = [
+            n for n, d in self._champion_data.items()
+            if isinstance(d, dict) and d.get('cost', 1) in cost_pool
+        ]
+
+        # Tạo 9 slots
+        slots = []
+        items = list(self.item_registry._items.values()) if self.item_registry else []
+        for _ in range(9):
+            if champ_names:
+                name  = random.choice(champ_names)
+                champ = self.make_champion(name)
+                item  = random.choice(items) if items else None
+                slots.append({'champion': champ, 'item': item})
+        self._carousel_slots = slots
+        return slots
+
+    def pick_carousel(self, player, slot_idx):
+        """
+        Player chọn tướng từ carousel.
+        Trả về True nếu thành công.
+        """
+        if slot_idx >= len(self._carousel_slots):
+            return False
+        slot = self._carousel_slots[slot_idx]
+        if slot is None:
+            return False   # Đã bị chọn rồi
+
+        champ = slot['champion']
+        item  = slot['item']
+
+        # Thêm tướng vào bench
+        added = player.add_to_bench(champ)
+        if not added:
+            player.add_to_board_auto(champ)
+
+        # Thêm item vào bench
+        if item:
+            player.add_item_to_bench(item)
+
+        # Xóa slot đã chọn
+        self._carousel_slots[slot_idx] = None
+        return True
+
+    def generate_augment_offers(self):
+        """Tạo 3 augments ngẫu nhiên cho mỗi player"""
+        if not self._augment_pool:
+            return
+        for player in self.players:
+            if player.is_alive:
+                offers = random.sample(
+                    self._augment_pool,
+                    min(3, len(self._augment_pool))
+                )
+                self._augment_offers[player.name] = offers
+
+    def pick_augment(self, player, aug_idx):
+        """Player chọn augment. Trả về True nếu thành công."""
+        offers = self._augment_offers.get(player.name, [])
+        if aug_idx >= len(offers):
+            return False
+        aug    = offers[aug_idx]
+        effect = aug.get('effect', {})
+        etype  = effect.get('type')
+
+        # Apply effect
+        if etype == 'stat':
+            board_champs = player.get_board_champions()
+            for champ in board_champs:
+                self._apply_augment_stat(champ, effect)
+        elif etype == 'economy':
+            player.econ.gold    += effect.get('instant_gold', 0)
+            player.econ.gold    += effect.get('gold_per_round', 0)  # TODO: per round
+            count = effect.get('instant_items', 0)
+            if self.item_registry and count:
+                items = list(self.item_registry._items.values())
+                for _ in range(count):
+                    if items: player.add_item_to_bench(random.choice(items))
+            if effect.get('free_level_up'):
+                if player.econ.level < 10:
+                    player.econ.level += 1
+        elif etype == 'board':
+            player.econ.board_size_bonus = getattr(player.econ, 'board_size_bonus', 0)
+            player.econ.board_size_bonus += effect.get('extra_board_size', 0)
+
+        self.match_log.append(f"[Augment] {player.name} chọn: {aug['name']}")
+        self._augment_offers[player.name] = []
+        return True
+
+    def _apply_augment_stat(self, champ, effect):
+        """Apply stat buff từ augment lên champion"""
+        cond = effect.get('condition', 'all')
+        cost = getattr(champ, 'cost', 1)
+        star = getattr(champ, 'star', 1)
+
+        if cond == 'has_item' and not champ.items:
+            return
+        if cond == 'cost_lte_2' and cost > 2:
+            return
+        if cond == 'star_gte_2' and star < 2:
+            return
+
+        if 'hp_flat' in effect:
+            champ.max_hp += effect['hp_flat']
+            champ.hp     += effect['hp_flat']
+        if 'ad_pct' in effect:
+            champ.ad = int(champ.ad * (1 + effect['ad_pct']))
+        if 'as_pct' in effect:
+            champ.attack_speed *= (1 + effect['as_pct'])
+        if 'hp_pct' in effect:
+            bonus = int(champ.max_hp * effect['hp_pct'])
+            champ.max_hp += bonus
+            champ.hp     += bonus
+        if 'stat' in effect and 'value' in effect:
+            stat = effect['stat']
+            if hasattr(champ, stat):
+                setattr(champ, stat, getattr(champ, stat) + effect['value'])
 
     # ==================
     # ROUND TYPE
@@ -263,12 +459,12 @@ class Game:
             return "carousel"
         if key in PVE_ROUNDS:
             return "pve"
-        if key in {r for r in AUGMENT_ROUNDS}:
-            return "augment_pvp"   # Augment offer + PvP round
+        if key in AUGMENT_ROUNDS:
+            return "augment"
         return "pvp"
 
     def is_pvp(self):
-        return self.get_round_type() in {"pvp", "augment_pvp"}
+        return self.get_round_type() == "pvp"
 
     def is_augment_round(self):
         return (self.stage, self.round_num) in AUGMENT_ROUNDS
@@ -460,15 +656,13 @@ class Game:
         """Tăng round counter, set stage mới nếu cần"""
         self.round_count += 1
 
-        # Round structure: Stage 1 có 4 rounds, stage 2+ có 5 rounds
-        max_round = 4 if self.stage == 1 else 5
+        max_round = ROUNDS_PER_STAGE.get(self.stage, ROUNDS_PER_STAGE_DEFAULT)
         if self.round_num >= max_round:
             self.stage    += 1
             self.round_num = 1
         else:
             self.round_num += 1
 
-        # Update econ round tracking cho tất cả players
         for player in self.players:
             player.econ.current_stage = self.stage
             player.econ.current_round = self.round_num
@@ -476,6 +670,103 @@ class Game:
     # ==================
     # CHAMPION FACTORY
     # ==================
+
+    def _make_creep(self, stage, round_num):
+        """Tạo danh sách creep cho PvE round"""
+        data   = PVE_CREEP_DATA.get((stage, round_num), {})
+        if not data:
+            return []
+        creeps = []
+        for i in range(data["count"]):
+            creep = Champion(
+                name         = f"Creep_{stage}_{round_num}_{i}",
+                cost         = 0,
+                hp           = data["hp"],
+                armor        = data["armor"],
+                mr           = data["mr"],
+                attack_damage= data["ad"],
+                attack_speed = 0.75,
+                range_       = 1,
+                traits       = [],
+                mana_max     = 999,   # Creep không cast skill
+            )
+            creep.role = "fighter"
+            creeps.append(creep)
+        return creeps
+
+    def _run_pve_combat(self, player, stage, round_num):
+        """
+        Chạy combat PvE giữa player và creep.
+        Trả về dict kết quả tương tự run_combat().
+        """
+        team_player = player.get_board_champions()
+        team_creep  = self._make_creep(stage, round_num)
+
+        if not team_player:
+            return {
+                "winner": "creep", "survivors_player": [],
+                "survivors_creep": team_creep, "duration": 0
+            }
+        if not team_creep:
+            return {
+                "winner": "player", "survivors_player": team_player,
+                "survivors_creep": [], "duration": 0
+            }
+
+        # Reset champions
+        for champ in team_player:
+            champ.reset_for_combat()
+
+        # Setup combat board
+        from board import HexBoard
+        combat_board = HexBoard()
+
+        # Đặt player team hàng 0-3
+        for i, champ in enumerate(team_player):
+            row, col = champ.position if champ.position else (0, i % 7)
+            try:
+                combat_board.place(champ, row, col)
+            except ValueError:
+                for r in range(4):
+                    for c in range(7):
+                        if combat_board.is_empty(r, c):
+                            combat_board.place(champ, r, c)
+                            break
+                    else:
+                        continue
+                    break
+
+        # Đặt creep hàng 4-7
+        for i, creep in enumerate(team_creep):
+            row, col = 4 + (i // 7), i % 7
+            try:
+                combat_board.place(creep, row, col)
+            except ValueError:
+                pass
+
+        # Apply traits cho player
+        trait_mgr = TraitManager(self._trait_data)
+        trait_mgr.apply(team_player)
+
+        sim    = CombatSimulator(combat_board, team_player, team_creep)
+        result = sim.run(max_seconds=30)
+
+        trait_mgr.remove(team_player)
+
+        # Restore positions
+        for champ in team_player:
+            for (r, c), occ in player.board.cells.items():
+                if occ is champ:
+                    champ.position = (r, c)
+                    break
+
+        winner = "player" if result["winner"] == "team_a" else "creep"
+        return {
+            "winner"           : winner,
+            "survivors_player" : result["survivors_a"],
+            "survivors_creep"  : result["survivors_b"],
+            "duration"         : result["duration"],
+        }
 
     def make_champion(self, name):
         """
@@ -571,19 +862,104 @@ class Game:
                           f"→ {winner_name} wins ({result['duration']}s)")
 
         elif round_type == "pve":
-            # PvE: tất cả "thắng" (placeholder — sau này dùng PvE creep)
             for player in self.players:
-                if player.is_alive:
+                if not player.is_alive:
+                    continue
+
+                # Carousel round (1-1): tất cả thắng, nhận item miễn phí
+                if (self.stage, self.round_num) == (1, 1):
+                    if self.item_registry and random.random() < 1.0:
+                        items = list(self.item_registry._items.values())
+                        if items:
+                            item = random.choice(items)
+                            player.add_item_to_bench(item)
                     combat_results.append((player, None, {
                         "winner": "team_a", "survivors_a": [], "survivors_b": [],
-                        "duration": 0, "events": []
+                        "duration": 0, "events": [], "pve": True, "pve_won": True
                     }))
-            if verbose:
-                print("  PvE round — all players win")
+                    continue
+
+                # Bots luôn thắng PvE — nhận thưởng ngay
+                if player.name != "Agent":
+                    data = PVE_CREEP_DATA.get((self.stage, self.round_num), {})
+                    player.econ.gold += data.get("gold_reward", 1)
+                    if self.item_registry and random.random() < PVE_ITEM_DROP_CHANCE:
+                        items = list(self.item_registry._items.values())
+                        if items:
+                            player.add_item_to_bench(random.choice(items))
+                    combat_results.append((player, None, {
+                        "winner": "team_a", "survivors_a": [], "survivors_b": [],
+                        "duration": 0, "events": [], "pve": True, "pve_won": True
+                    }))
+                    continue
+
+                # Agent phải đánh PvE thật
+                pve_result = self._run_pve_combat(player, self.stage, self.round_num)
+                pve_won    = pve_result["winner"] == "player"
+                data       = PVE_CREEP_DATA.get((self.stage, self.round_num), {})
+
+                if pve_won:
+                    # Thắng: nhận gold + item
+                    player.econ.gold += data.get("gold_reward", 1)
+                    if self.item_registry and random.random() < PVE_ITEM_DROP_CHANCE:
+                        items = list(self.item_registry._items.values())
+                        if items:
+                            player.add_item_to_bench(random.choice(items))
+                else:
+                    # Thua: mất HP theo số creep còn sống
+                    survivors = len(pve_result["survivors_creep"])
+                    dmg = self.stage + survivors
+                    player.econ.hp = max(0, player.econ.hp - dmg)
+
+                combat_results.append((player, None, {
+                    "winner"    : "team_a" if pve_won else "team_b",
+                    "survivors_a": pve_result["survivors_player"],
+                    "survivors_b": [],
+                    "duration"  : pve_result["duration"],
+                    "events"    : [],
+                    "pve"       : True,
+                    "pve_won"   : pve_won,
+                }))
+
+                if verbose:
+                    status = "WIN" if pve_won else "LOSE"
+                    print(f"  {player.name} PvE {self.stage}-{self.round_num} → {status}")
 
         elif round_type == "carousel":
+            # Tạo carousel và cho bots chọn theo thứ tự HP thấp nhất
+            slots = self.generate_carousel()
+            alive_sorted = sorted(
+                [p for p in self.players if p.is_alive],
+                key=lambda p: p.hp   # HP thấp nhất chọn trước
+            )
+            used = set()
+            for player in alive_sorted:
+                # Bots chọn slot có item tốt nhất còn lại
+                best_idx = None
+                for i, slot in enumerate(slots):
+                    if slot and i not in used:
+                        best_idx = i
+                        break
+                if best_idx is not None:
+                    self.pick_carousel(player, best_idx)
+                    used.add(best_idx)
+
             if verbose:
-                print("  Carousel round — skipped in simulation")
+                print(f"  Carousel — {len(slots)} slots, {len(alive_sorted)} players picked")
+
+            # Agent sẽ chọn qua action trong env.py — không chọn ở đây
+
+        elif round_type == "augment":
+            # Generate augment offers và cho bots tự chọn
+            self.generate_augment_offers()
+            for player in self.players:
+                if player.is_alive and player.name != "Agent":
+                    offers = self._augment_offers.get(player.name, [])
+                    if offers:
+                        self.pick_augment(player, 0)  # Bot chọn augment đầu tiên
+
+            if verbose:
+                print("  Augment round — offers generated")
 
         self.process_round_end(combat_results)
         return combat_results
