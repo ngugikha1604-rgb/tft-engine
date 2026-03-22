@@ -216,7 +216,6 @@ class TFTEnv(gym.Env):
         self._print_every      = 50   # in mỗi 50 game
         self._total_reward     = 0.0
         self._rounds_survived  = 0
-        self._elimination_order = []   # Thứ tự bị loại — chết trước vào trước
 
         # Logger
         self.logger.on_episode_start(self._episode_count)
@@ -452,16 +451,9 @@ class TFTEnv(gym.Env):
             self._apply_bot_stage_buff()  # Buff bot theo stage
             self._apply_adaptive_buff()   # Buff bot khi agent quá mạnh
 
-            hp_before  = self.agent.hp
-            prev_alive = {p.name for p in self.game.players if p.is_alive}
-            results    = self.game.simulate_round(verbose=False)
+            hp_before = self.agent.hp
+            results   = self.game.simulate_round(verbose=False)
             self._rounds_survived += 1
-
-            # Track thứ tự bị loại
-            for p in self.game.players:
-                if p.name in prev_alive and not p.is_alive:
-                    if p.name not in self._elimination_order:
-                        self._elimination_order.append(p.name)
 
             hp_delta = self.agent.hp - self._prev_hp
             self._prev_hp = self.agent.hp
@@ -571,29 +563,20 @@ class TFTEnv(gym.Env):
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
 
-                # Tính rank dựa trên thứ tự bị loại
-                # Player chết sau = xếp hạng cao hơn
-                n_players = len(self.game.players)
-
-                if self.agent.is_alive:
-                    # Agent vẫn sống → đếm player sống có HP cao hơn
-                    agent_hp = self.agent.hp
-                    rank     = sum(
-                        1 for p in self.game.players
-                        if p is not self.agent and p.is_alive and p.hp > agent_hp
-                    )
-                else:
-                    # Agent đã chết → rank = số player chết sau agent
-                    # (player còn sống đều xếp trên agent)
-                    alive_count = sum(1 for p in self.game.players if p.is_alive)
-                    if self.agent.name in self._elimination_order:
-                        agent_elim_pos = self._elimination_order.index(self.agent.name)
-                        # Số player chết trước agent (xếp dưới agent)
-                        died_before = agent_elim_pos
-                        rank = n_players - 1 - died_before
-                    else:
-                        # Agent chết cùng lúc với nhiều người — dùng alive count
-                        rank = alive_count
+                # Tính rank: đếm số player có HP cao hơn agent
+                # Dùng >= thay vì > để tránh trường hợp tie HP=0
+                agent_hp = self.agent.hp
+                rank = sum(
+                    1 for p in self.game.players
+                    if p is not self.agent and p.hp > agent_hp
+                )
+                # Nếu agent chết (hp=0): tất cả player còn sống đều xếp trên
+                if not self.agent.is_alive:
+                    rank = sum(1 for p in self.game.players
+                               if p is not self.agent and p.is_alive)
+                    # Cộng thêm số player chết có HP > 0 lúc cuối
+                    rank += sum(1 for p in self.game.players
+                                if p is not self.agent and not p.is_alive and p.hp > 0)
                 reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
