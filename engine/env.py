@@ -214,9 +214,9 @@ class TFTEnv(gym.Env):
         self._episode_rewards  = []
         self._episode_placements = getattr(self, '_episode_placements', [])
         self._print_every      = 50   # in mỗi 50 game
-        self._total_reward        = 0.0
-        self._rounds_survived     = 0
-        self._alive_when_died     = None   # Số player còn sống khi agent chết
+        self._total_reward     = 0.0
+        self._rounds_survived  = 0
+        self._alive_when_died  = None   # Reset mỗi episode
 
         # Logger
         self.logger.on_episode_start(self._episode_count)
@@ -452,6 +452,12 @@ class TFTEnv(gym.Env):
             self._apply_bot_stage_buff()  # Buff bot theo stage
             self._apply_adaptive_buff()   # Buff bot khi agent quá mạnh
 
+            # Track TRƯỚC simulate — số bot còn sống
+            alive_before_round = sum(
+                1 for p in self.game.players
+                if p is not self.agent and p.is_alive
+            )
+
             hp_before = self.agent.hp
             results   = self.game.simulate_round(verbose=False)
             self._rounds_survived += 1
@@ -459,12 +465,9 @@ class TFTEnv(gym.Env):
             hp_delta = self.agent.hp - self._prev_hp
             self._prev_hp = self.agent.hp
 
-            # Track số player còn sống khi agent vừa chết
-            if hp_delta < 0 and not self.agent.is_alive and self._alive_when_died is None:
-                self._alive_when_died = sum(
-                    1 for p in self.game.players
-                    if p is not self.agent and p.is_alive
-                )
+            # Nếu agent chết round này → lưu số bot sống TRƯỚC round
+            if not self.agent.is_alive:
+                self._alive_when_died = alive_before_round
 
             # Penalty nặng khi thua PvE
             for player, _, result in results:
@@ -571,12 +574,19 @@ class TFTEnv(gym.Env):
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
 
-                # Tính rank dựa trên số player còn sống nhiều HP hơn agent
-                agent_hp  = self.agent.hp
-                rank      = sum(
-                    1 for p in self.game.players
-                    if p is not self.agent and p.hp > agent_hp
-                )
+                # Tính rank chính xác
+                if self.agent.is_alive:
+                    rank = sum(
+                        1 for p in self.game.players
+                        if p is not self.agent and p.hp > self.agent.hp
+                    )
+                else:
+                    # Agent chết: rank = số bot sống TRƯỚC round agent chết
+                    rank = getattr(self, '_alive_when_died', None)
+                    if rank is None:
+                        rank = sum(1 for p in self.game.players
+                                   if p is not self.agent and p.is_alive)
+                rank = max(0, min(rank, len(self.game.players) - 1))
                 reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
