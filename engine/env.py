@@ -214,8 +214,9 @@ class TFTEnv(gym.Env):
         self._episode_rewards  = []
         self._episode_placements = getattr(self, '_episode_placements', [])
         self._print_every      = 50   # in mỗi 50 game
-        self._total_reward     = 0.0
-        self._rounds_survived  = 0
+        self._total_reward        = 0.0
+        self._rounds_survived     = 0
+        self._alive_when_died     = None   # Số player còn sống khi agent chết
 
         # Logger
         self.logger.on_episode_start(self._episode_count)
@@ -458,6 +459,13 @@ class TFTEnv(gym.Env):
             hp_delta = self.agent.hp - self._prev_hp
             self._prev_hp = self.agent.hp
 
+            # Track số player còn sống khi agent vừa chết
+            if hp_delta < 0 and not self.agent.is_alive and self._alive_when_died is None:
+                self._alive_when_died = sum(
+                    1 for p in self.game.players
+                    if p is not self.agent and p.is_alive
+                )
+
             # Penalty nặng khi thua PvE
             for player, _, result in results:
                 if player is self.agent:
@@ -563,20 +571,12 @@ class TFTEnv(gym.Env):
             if not self.agent.is_alive or self.game.is_game_over():
                 terminated = True
 
-                # Tính rank: đếm số player có HP cao hơn agent
-                # Dùng >= thay vì > để tránh trường hợp tie HP=0
-                agent_hp = self.agent.hp
-                rank = sum(
+                # Tính rank dựa trên số player còn sống nhiều HP hơn agent
+                agent_hp  = self.agent.hp
+                rank      = sum(
                     1 for p in self.game.players
                     if p is not self.agent and p.hp > agent_hp
                 )
-                # Nếu agent chết (hp=0): tất cả player còn sống đều xếp trên
-                if not self.agent.is_alive:
-                    rank = sum(1 for p in self.game.players
-                               if p is not self.agent and p.is_alive)
-                    # Cộng thêm số player chết có HP > 0 lúc cuối
-                    rank += sum(1 for p in self.game.players
-                                if p is not self.agent and not p.is_alive and p.hp > 0)
                 reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
 
                 # Lưu placement
