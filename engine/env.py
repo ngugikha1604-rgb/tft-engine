@@ -211,9 +211,13 @@ class TFTEnv(gym.Env):
             self._reload_model_bot()
 
         # Tracking cho stats in ra
-        self._episode_rewards  = []
+        self._episode_rewards    = []
         self._episode_placements = getattr(self, '_episode_placements', [])
-        self._print_every      = 50   # in mỗi 50 game
+        self._print_every        = 50   # in mỗi 50 game
+
+        # Reset placements nếu đây là episode đầu tiên (mới train)
+        if self._episode_count == 1:
+            self._episode_placements = []
         self._total_reward     = 0.0
         self._rounds_survived  = 0
         self._alive_when_died  = None   # Reset mỗi episode
