@@ -859,10 +859,20 @@ class Game:
             pairs = self.make_pvp_pairs()
             for player_a, player_b in pairs:
                 if player_b is None:
-                    combat_results.append((player_a, None, {
-                        "winner": "team_a", "survivors_a": [], "survivors_b": [],
-                        "duration": 0, "events": []
-                    }))
+                    # Player lẻ: thắng walkover NẾU có tướng trên board
+                    # Nếu board trống → thua (mất HP như thua thật)
+                    has_board = len(player_a.get_board_champions()) > 0
+                    if has_board:
+                        combat_results.append((player_a, None, {
+                            "winner": "team_a", "survivors_a": [], "survivors_b": [],
+                            "duration": 0, "events": []
+                        }))
+                    else:
+                        # Board trống → tự động thua
+                        combat_results.append((player_a, None, {
+                            "winner": "team_b", "survivors_a": [], "survivors_b": [],
+                            "duration": 0, "events": []
+                        }))
                     continue
 
                 result = self.run_combat(player_a, player_b)
