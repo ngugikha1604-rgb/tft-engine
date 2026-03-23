@@ -515,10 +515,13 @@ class Game:
         team_b = player_b.get_board_champions() if player_b else []
 
         if not team_a:
-            return {"winner": "team_b", "survivors_a": [], "survivors_b": [],
+            # Board trống: thua, tính đủ survivors để damage đúng
+            return {"winner": "team_b", "survivors_a": [],
+                    "survivors_b": team_b,
                     "duration": 0, "events": []}
         if not team_b:
-            return {"winner": "team_a", "survivors_a": team_a, "survivors_b": [],
+            return {"winner": "team_a", "survivors_a": team_a,
+                    "survivors_b": [],
                     "duration": 0, "events": []}
 
         # Reset và reapply augment team stats trước combat
