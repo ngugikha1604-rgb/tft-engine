@@ -211,16 +211,17 @@ class TFTEnv(gym.Env):
             self._reload_model_bot()
 
         # Tracking cho stats in ra
-        self._episode_rewards    = []
-        self._episode_placements = getattr(self, '_episode_placements', [])
-        self._print_every        = 50   # in mỗi 50 game
+        self._episode_rewards = []
+        self._print_every     = 50
+        self._total_reward    = 0.0
+        self._rounds_survived = 0
+        self._alive_when_died = None
 
-        # Reset placements nếu đây là episode đầu tiên (mới train)
-        if self._episode_count == 1:
+        # Giữ placement history nhưng giới hạn 500 games gần nhất
+        if not hasattr(self, '_episode_placements'):
             self._episode_placements = []
-        self._total_reward     = 0.0
-        self._rounds_survived  = 0
-        self._alive_when_died  = None   # Reset mỗi episode
+        if len(self._episode_placements) > 500:
+            self._episode_placements = self._episode_placements[-500:]
 
         # Logger
         self.logger.on_episode_start(self._episode_count)
@@ -651,7 +652,7 @@ class TFTEnv(gym.Env):
 
         sep = "=" * 55
         print(f"\n{sep}")
-        print(f"[Stats] Sau {self._episode_count} games (last {n}):")
+        print(f"[Stats] Sau {self._episode_count} games (last {n}, total={len(self._episode_placements)}):")
         print(f"  Top1  : {top1}/{n} ({top1/n*100:.1f}%)")
         print(f"  Top4  : {top4}/{n} ({top4/n*100:.1f}%)")
         print(f"  Avg placement: {avg_p:.2f}")
