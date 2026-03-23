@@ -529,19 +529,19 @@ class TFTEnv(gym.Env):
 
             # ── B. Phạt board trống/thiếu — RẤT NẶNG ─────────
             if board_size == 0:
-                # Phạt cực nặng tăng theo stage
+                # Phạt nặng từ stage 2, tăng dần
                 empty_board_penalty = {
-                    2: -3.0,
-                    3: -5.0,
-                    4: -15.0,
-                    5: -25.0,
-                }.get(stage, -30.0)   # Stage 6+ phạt -30/round
+                    2: -8.0,
+                    3: -12.0,
+                    4: -20.0,
+                    5: -30.0,
+                }.get(stage, -40.0)   # Stage 6+ phạt -40/round
                 reward += empty_board_penalty
             else:
                 # Phạt khi chưa dùng hết board_cap — tăng theo stage
                 empty_slots = board_cap - board_size
                 if empty_slots > 0:
-                    slot_penalty = 0.3 if stage >= 4 else 0.15
+                    slot_penalty = 0.3 if stage >= 4 else 0.2
                     reward -= empty_slots * slot_penalty
 
             # ── C. Phạt bench có tướng mà không đặt lên board ─
@@ -567,6 +567,20 @@ class TFTEnv(gym.Env):
             if win_streak >= 2:
                 reward += win_streak * 0.2
 
+            # Phạt khi thắng walkover — đối thủ không có tướng
+            if hp_delta == 0 and self.game.is_pvp():
+                # Kiểm tra xem đối thủ round này có tướng không
+                # Nếu thắng nhờ đối thủ board trống thì không tính là thắng thật
+                any_real_fight = False
+                for pa, pb, res in results:
+                    if pa is self.agent or pb is self.agent:
+                        opp = pb if pa is self.agent else pa
+                        if opp and len(opp.get_board_champions()) > 0:
+                            any_real_fight = True
+                        break
+                if not any_real_fight:
+                    reward -= 3.0  # Phạt thắng walkover
+
             if hp_delta < 0:
                 reward += hp_delta * (0.3 * self.game.stage)
                 reward -= 5.0 
@@ -587,7 +601,11 @@ class TFTEnv(gym.Env):
                         rank = sum(1 for p in self.game.players
                                    if p is not self.agent and p.is_alive)
                 rank = max(0, min(rank, len(self.game.players) - 1))
-                reward += {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+                base_reward = {0:100, 1:60, 2:20, 3:10, 4:-10, 5:-25, 6:-40, 7:-80}.get(rank, -80)
+                # Giảm reward nếu agent thắng với board trống (exploit)
+                if rank == 0 and board_size == 0:
+                    base_reward = -20.0  # Phạt thắng kiểu exploit
+                reward += base_reward
 
                 # Lưu placement
                 self._episode_placements.append(rank + 1)   # rank 0 = top1
