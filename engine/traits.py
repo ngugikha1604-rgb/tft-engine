@@ -335,7 +335,8 @@ def _load_default_traits():
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
     # Fallback rỗng nếu không có file
-    print("[TraitManager] WARNING: data/traits.json không tìm thấy!")
+    # NOTE: keep message ASCII for Windows consoles with cp1252.
+    print("[TraitManager] WARNING: data/traits.json not found!")
     return {}
 
 DEFAULT_TRAITS = _load_default_traits()

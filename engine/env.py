@@ -17,10 +17,12 @@ from traits import TraitManager, DEFAULT_TRAITS
 from logger import TFTLogger
 
 # MaskablePPO import cho ModelBot — optional, không crash nếu chưa cài
+# NOTE: On Windows, importing torch can raise OSError (DLL load failure),
+# so we catch any Exception here to keep the environment usable.
 try:
     from sb3_contrib import MaskablePPO
     _SB3_CONTRIB = True
-except ImportError:
+except Exception:
     _SB3_CONTRIB = False
 
 # ==================
